@@ -292,26 +292,97 @@ public class Scripter : MonoBehaviour {
         }
         return check;
     }
+    int sellect_num = 0;
+    float quit_time = 0;
+    bool mouse_use = false;
     //セーブ関数
     public void Main_Save()
     {
+        //EventSystem.current.SetSelectedGameObject(null);
         if (EventSystem.current == null) return;
+        
         PointerEventData eventDataCurrent = new PointerEventData(EventSystem.current);
         eventDataCurrent.position = Input.mousePosition;
         List<RaycastResult>raycast = new List<RaycastResult>();
         EventSystem.current.RaycastAll(eventDataCurrent, raycast);
-        if (Input.GetMouseButtonDown(1))
+        if(quit_time == 0)
         {
+            quit_time = Time.time - 0.2f;
+            return;
+        }
+        for (int i = 0; i < savemanager.save_load; i++)
+        {
+            savemanager.Show_Object[i].GetComponent<Image>().color = Color.white;
+        }
+        if (Input.GetAxisRaw("Vertical") == 0 && Input.GetAxisRaw("Horizontal")==0)
+        {
+            quit_time = Time.time - 0.2f;
+        }
+        if (Time.time - quit_time > 0.2f)
+        {
+            if (Input.GetAxisRaw("Vertical") == 1)
+            {
+                sellect_num = (sellect_num + (savemanager.save_load - 1)) % savemanager.save_load;
+                quit_time = Time.time;
+                mouse_use = false;
+            }
+            else if (Input.GetAxisRaw("Vertical") == -1)
+            {
+                sellect_num = (sellect_num + 1) % savemanager.save_load;
+                quit_time = Time.time;
+                mouse_use = false;
+            }
+            if (Input.GetAxisRaw("Horizontal") > 0)
+            {
+                savemanager.NextPageButton();
+                quit_time = Time.time;
+                return;
+            }
+            else if (Input.GetAxisRaw("Horizontal") < 0)
+            {
+                savemanager.PrevPageButton();
+                quit_time = Time.time;
+                return;
+            }
+        }
+        bool check = false;
+        int temp_num = 0;
+        foreach (RaycastResult tmp_result in raycast)
+        {
+                for (int i = 0; i < savemanager.save_load; i++)
+                {
+                    if (!int.TryParse(savemanager.Show_Object[i].gameObject.name, out temp_num)) break;
+                    if (tmp_result.gameObject.transform.parent.gameObject.name == savemanager.Show_Object[i].gameObject.name)
+                    {
+                        check = true;
+                        EventSystem.current.SetSelectedGameObject(savemanager.Show_Object[i].gameObject);
+                        sellect_num = temp_num - 1;
+                        mouse_use = true;
+                        break;
+                    }
+                    else if (tmp_result.gameObject.name == savemanager.Show_Object[i].gameObject.name)
+                    {
+                        check = true;
+                        EventSystem.current.SetSelectedGameObject(savemanager.Show_Object[i].gameObject);
+                        sellect_num = temp_num - 1;
+                        mouse_use = true;
+                        break;
+                    }
+                }
+                if (check) break;
+        }
+        GameObject tmp = savemanager.Show_Object[sellect_num% savemanager.save_load].gameObject;
+        //savemanager.save_object[savemanager.now_page][sellect_num].GetComponent<Image>().color = Color.red;
+        
+        if (Input.GetButtonDown("Cancel"))
+        {
+            quit_time = 0;
             screen = SCREEN_STATUS.MAIN;
             savemanager.save_BackGround.gameObject.SetActive(false);
-            for (int page = 0; page < savemanager.save_load_page; page++)
-            {
                 for (int j = 0; j < savemanager.save_load; j++)
                 {
-                    savemanager.save_object[page][j].gameObject.SetActive(true);
-                    Destroy(savemanager.save_object[page][j]);
+                    Destroy(savemanager.Show_Object[j]);
                 }
-            }
             savemanager.nextpagebutton.gameObject.SetActive(false);            
             savemanager.prevpagebutton.gameObject.SetActive(false);
             savemanager.page_number.gameObject.SetActive(false);
@@ -320,108 +391,102 @@ public class Scripter : MonoBehaviour {
             Destroy(save_canvas.gameObject);
             Destroy(save_canvas);
         }
-        for (int page = 0; page < savemanager.save_load_page; page++)
+        //Debug.Log(savemanager.now_page);
+        if (Input.GetButtonDown("Submit"))
         {
-            for (int i = 0; i < savemanager.save_load; i++)
+            if (EventSystem.current.currentSelectedGameObject == savemanager.prevpagebutton.gameObject || EventSystem.current.currentSelectedGameObject == savemanager.nextpagebutton.gameObject) return;
+            quit_time = 0;
+            NovelSave SD = new NovelSave();
+            string bgmname = "";
+            string voicename = "";
+            if (bgm.clip != null)
             {
-                savemanager.save_object[page][i].gameObject.SetActive(savemanager.now_page == page);
+                bgmname = bgm.clip.name;
             }
-        }
-        Debug.Log(savemanager.now_page);
-        for (int i = 0; i < savemanager.save_load; i++)
-        {
-            savemanager.save_object[savemanager.now_page][i].GetComponent<Image>().color = Color.white;
-        }
-        foreach(RaycastResult tmp in raycast)
-        {
-            for(int i = 0; i < savemanager.save_load; i++)
+            if (character_voice.clip != null)
             {
-                if(tmp.gameObject.name == savemanager.save_object[savemanager.now_page][i].gameObject.name)
+                voicename = character_voice.clip.name;
+            }
+            SD.Save(reading_pos, FrontScreen.right.name, FrontScreen.right.sprite, new Color(FrontScreen.right.color.r, FrontScreen.right.color.g, FrontScreen.right.color.b, 1),
+                FrontScreen.center.name, FrontScreen.center.sprite, new Color(FrontScreen.center.color.r, FrontScreen.center.color.g, FrontScreen.center.color.b, 1),
+                FrontScreen.left.name, FrontScreen.left.sprite, new Color(FrontScreen.left.color.r, FrontScreen.left.color.g, FrontScreen.left.color.b, 1),
+                back_log.text, FrontScreen.background.name, FrontScreen.background.sprite, FrontScreen.background.color, title_name, bgmname, voicename, bgm.isPlaying);
+
+            //--------------------------------------------------------------------------------------
+            SD.current_message = string.Format("ストーリー「{5}」\n{0}/{1}/{2}/{3}:{4}", DateTime.Now.Year, DateTime.Now.Month, DateTime.Now.Day, DateTime.Now.Hour, DateTime.Now.Minute, title_name);
+            //---------------------------------------------------------------------------------------
+            for (int j = reading_pos - 1; j >= 0; j--)
+            {
+                if (scriptions[j].type == COMMAND_TYPE.NORMAL_TEXT)
                 {
-                    savemanager.save_object[savemanager.now_page][i].GetComponent<Image>().color = Color.red;
-                    if (Input.GetMouseButtonDown(0))
-                    {
-
-                        NovelSave SD = new NovelSave();
-                        string bgmname = "";
-                        string voicename = "";
-                        if (bgm.clip != null)
-                        {
-                            bgmname = bgm.clip.name;
-                        }
-                        if(character_voice.clip != null)
-                        {
-                            voicename = character_voice.clip.name;
-                        }
-                        SD.Save(reading_pos, FrontScreen.right.name, FrontScreen.right.sprite, new Color(FrontScreen.right.color.r, FrontScreen.right.color.g, FrontScreen.right.color.b, 1),
-                            FrontScreen.center.name, FrontScreen.center.sprite, new Color(FrontScreen.center.color.r, FrontScreen.center.color.g, FrontScreen.center.color.b, 1),
-                            FrontScreen.left.name, FrontScreen.left.sprite, new Color(FrontScreen.left.color.r, FrontScreen.left.color.g, FrontScreen.left.color.b, 1),
-                            back_log.text, FrontScreen.background.name, FrontScreen.background.sprite, FrontScreen.background.color, title_name, bgmname, voicename, bgm.isPlaying);
-
-                        //--------------------------------------------------------------------------------------
-                        SD.current_message = string.Format("ストーリー「{5}」\n{0}/{1}/{2}/{3}:{4}",DateTime.Now.Year,DateTime.Now.Month,DateTime.Now.Day,DateTime.Now.Hour,DateTime.Now.Minute, title_name);
-                        //---------------------------------------------------------------------------------------
-                        for(int j = reading_pos-1; j >= 0; j--)
-                        {
-                            if (scriptions[j].type == COMMAND_TYPE.NORMAL_TEXT)
-                            {
-                                SD.reading_pos = j;
-                                break;
-                            }
-                        }
-                        FileStream fs = new FileStream(Application.streamingAssetsPath+"/SaveData/" + tmp.gameObject.name + ".json", FileMode.Create, FileAccess.Write);
-                        StreamWriter sw = new StreamWriter(fs);
-                        //**注意**--------------------------------------------------------------------------------------------------------------------------------------------------------------
-                        Encryption_Config ec = Resources.Load<Encryption_Config>("Prefab/Encryption");
-                        //sw.WriteLine(ec.EncryptionSystem(JsonUtility.ToJson(SD),false));
-                        sw.WriteLine(ec.EncryptionSystem(JsonUtility.ToJson(SD),true));  //debug
-
-                        //**--------------------------------------------------------------------------------------------------------------------------------------------------------------------
-                        sw.Flush();
-                        sw.Close();
-                        fs.Close();
-                        byte[] bytes = picture.EncodeToPNG();
-                        File.WriteAllBytes(Application.streamingAssetsPath + "/SaveData/" + tmp.gameObject.name + ".png", bytes);
-                        screen = SCREEN_STATUS.MAIN;
-                        savemanager.save_BackGround.gameObject.SetActive(false);
-                        savemanager.nextpagebutton.gameObject.SetActive(false);
-                        savemanager.prevpagebutton.gameObject.SetActive(false);
-                        savemanager.page_number.gameObject.SetActive(false);
-
-                        for (int k = 0; k < savemanager.save_load_page; k++)
-                        {
-                            for (int j = 0; j < savemanager.save_load; j++)
-                            {
-                                Destroy(savemanager.save_object[k][j]);
-                            }
-                        }
-                        Destroy(save_canvas.GetComponent<CanvasScaler>());
-                        Destroy(save_canvas.GetComponent<GraphicRaycaster>());
-                        Destroy(save_canvas.gameObject);
-                        Destroy(save_canvas);
-                        return;
-                    }
+                    SD.reading_pos = j;
+                    break;
                 }
             }
+            //Windows
+            //FileStream fs = new FileStream(Application.streamingAssetsPath + "/SaveData/" + tmp.gameObject.name + ".json", FileMode.Create, FileAccess.Write);
+            //Mac(streamingAssetsPath is readonly!)
+            FileStream fs = new FileStream(Application.persistentDataPath + "/SaveData/" + tmp.gameObject.name + ".json", FileMode.Create, FileAccess.Write);
+
+            StreamWriter sw = new StreamWriter(fs);
+            //**注意**--------------------------------------------------------------------------------------------------------------------------------------------------------------
+            Encryption_Config ec = Resources.Load<Encryption_Config>("Prefab/Encryption");
+            //sw.WriteLine(ec.EncryptionSystem(JsonUtility.ToJson(SD),false));
+            sw.WriteLine(ec.EncryptionSystem(JsonUtility.ToJson(SD), true));  //debug
+
+            //**--------------------------------------------------------------------------------------------------------------------------------------------------------------------
+            sw.Flush();
+            sw.Close();
+            fs.Close();
+            byte[] bytes = picture.EncodeToPNG();
+            //Windows
+            //File.WriteAllBytes(Application.streamingAssetsPath + "/SaveData/" + tmp.gameObject.name + ".png", bytes);
+            //Mac
+            File.WriteAllBytes(Application.persistentDataPath + "/SaveData/" + tmp.gameObject.name + ".png", bytes);
+            screen = SCREEN_STATUS.MAIN;
+            savemanager.save_BackGround.gameObject.SetActive(false);
+            savemanager.nextpagebutton.gameObject.SetActive(false);
+            savemanager.prevpagebutton.gameObject.SetActive(false);
+            savemanager.page_number.gameObject.SetActive(false);
+            
+                for (int j = 0; j < savemanager.save_load; j++)
+                {
+                    Destroy(savemanager.Show_Object[j]);
+                }
+            Destroy(save_canvas.GetComponent<CanvasScaler>());
+            Destroy(save_canvas.GetComponent<GraphicRaycaster>());
+            Destroy(save_canvas.gameObject);
+            Destroy(save_canvas);
+            return;
+        }
+        if (!check && mouse_use)
+        {
+            EventSystem.current.SetSelectedGameObject(null);
+        }
+        else if (!mouse_use)
+        {
+            EventSystem.current.SetSelectedGameObject(savemanager.Show_Object[(sellect_num % savemanager.save_load)].gameObject);
         }
     }
     //ロード関数
     public void Main_Load()
     {
-
+        //EventSystem.current.SetSelectedGameObject(null);
         if (EventSystem.current == null) return;
-        if (Input.GetMouseButtonDown(1))
+        PointerEventData eventDataCurrent = new PointerEventData(EventSystem.current);
+        eventDataCurrent.position = Input.mousePosition;
+        List<RaycastResult> raycast = new List<RaycastResult>();
+        EventSystem.current.RaycastAll(eventDataCurrent, raycast);
+        if (Input.GetButtonDown("Cancel"))
         {
+            quit_time = 0;
             screen = SCREEN_STATUS.MAIN;
             savemanager.save_BackGround.gameObject.SetActive(false);
-            for (int i = 0; i < savemanager.save_load_page; i++)
-            {
                 for (int j = 0; j < savemanager.save_load; j++)
                 {
-                    savemanager.save_object[i][j].gameObject.SetActive(true);
-                    Destroy(savemanager.save_object[i][j]);
+                    savemanager.Show_Object[j].gameObject.SetActive(true);
+                    Destroy(savemanager.Show_Object[j]);
                 }
-            }
             savemanager.nextpagebutton.gameObject.SetActive(false);
             savemanager.prevpagebutton.gameObject.SetActive(false);
             savemanager.page_number.gameObject.SetActive(false);
@@ -429,87 +494,134 @@ public class Scripter : MonoBehaviour {
             Destroy(save_canvas.GetComponent<GraphicRaycaster>());
             Destroy(save_canvas.gameObject);
             Destroy(save_canvas);
+            return;
         }
-        for (int page = 0; page < savemanager.save_load_page; page++)
-        {
             for (int i = 0; i < savemanager.save_load; i++)
             {
-                savemanager.save_object[page][i].gameObject.SetActive(page == savemanager.now_page);
+                savemanager.Show_Object[i].GetComponent<Image>().color = Color.white;
             }
-        }
-        PointerEventData eventDataCurrent = new PointerEventData(EventSystem.current);
-        eventDataCurrent.position = Input.mousePosition;
-        List<RaycastResult> raycast = new List<RaycastResult>();
-        EventSystem.current.RaycastAll(eventDataCurrent, raycast);
-        for (int j = 0; j < savemanager.save_load_page; j++)
+        if (quit_time == 0)
         {
-            for (int i = 0; i < savemanager.save_load; i++)
+            quit_time = Time.time - 0.2f;
+            return;
+        }
+        if (Input.GetAxisRaw("Vertical") == 0 && Input.GetAxisRaw("Horizontal")==0)
+        {
+            quit_time = Time.time - 0.2f;
+        }
+        if (Time.time - quit_time > 0.2f)
+        {
+            if (Input.GetAxisRaw("Vertical") == 1)
             {
-                savemanager.save_object[j][i].GetComponent<Image>().color = Color.white;
+                sellect_num = (sellect_num + (savemanager.save_load - 1)) % savemanager.save_load;
+                quit_time = Time.time;
+                mouse_use = false;
+            }
+            else if (Input.GetAxisRaw("Vertical") == -1)
+            {
+                sellect_num = (sellect_num + 1) % savemanager.save_load;
+                quit_time = Time.time;
+                mouse_use = false;
+            }
+            if (Input.GetAxisRaw("Horizontal") > 0)
+            {
+                savemanager.NextPageButton();
+                quit_time = Time.time;
+                return;
+            }
+            else if (Input.GetAxisRaw("Horizontal") < 0)
+            {
+                savemanager.PrevPageButton();
+                quit_time = Time.time;
+                return;
             }
         }
+        int temp_num;
+        bool check = false;
         foreach (RaycastResult tmp in raycast)
         {
-            for (int page = 0; page < savemanager.save_load_page; page++)
-            {
                 for (int i = 0; i < savemanager.save_load; i++)
                 {
-                    //if ((savemanager.sd[page][i]as NovelSave).reading_pos == -1) continue;
-                    if (tmp.gameObject.name == savemanager.save_object[page][i].gameObject.name)
+                    if (!int.TryParse(savemanager.Show_Object[i].gameObject.name, out temp_num)) break;
+                    if (tmp.gameObject.transform.parent.gameObject.name == savemanager.Show_Object[i].gameObject.name)
                     {
-                        savemanager.save_object[page][i].GetComponent<Image>().color = Color.red;
-                        if (Input.GetMouseButtonDown(0))
-                        {
-                            FileStream fs = new FileStream(Application.streamingAssetsPath + "/SaveData/" + savemanager.save_object[page][i].gameObject.name + ".json", FileMode.Open, FileAccess.Read);
-                            StreamReader sr = new StreamReader(fs);
-                            //**注意**--------------------------------------------------------------------------------------------------------------------------------------------------------------
-                            Encryption_Config ec = Resources.Load<Encryption_Config>("Prefab/Encryption");
-                            //string source_file = ec.DecryptionSystem(sr.ReadToEnd(),false);
-                            string source_file = ec.DecryptionSystem(sr.ReadToEnd(),true); //debug
-;
-                            //**--------------------------------------------------------------------------------------------------------------------------------------------------------------------
-                            NovelSave sd = JsonUtility.FromJson<NovelSave>(source_file);
-                            sd.Load(); //パーティメンバーのロード
-                            nextscene = sd.nameScene;
-
-                            FileStream fs2 = new FileStream(Application.streamingAssetsPath + "/SaveData/loadtemp",FileMode.Create,FileAccess.Write);
-                            StreamWriter sw = new StreamWriter(fs2);
-                            sw.WriteLine(source_file);
-                            sw.Flush();
-                            fs2.Flush();
-                            sw.Close();
-                            fs2.Close();
-                            //reading_pos = sd.reading_pos;
-                            PageChangeAnim.gameObject.SetActive(false);
-                            PageWaitAnim.gameObject.SetActive(false);
-                            sr.Close();
-                            fs.Close();
-                            state = Next_Command();
-                            //back_log.text = sd.backlog;
-                            screen = SCREEN_STATUS.FADE_OUT;
-                            savemanager.save_BackGround.gameObject.SetActive(false);
-                            savemanager.nextpagebutton.gameObject.SetActive(false);
-                            savemanager.prevpagebutton.gameObject.SetActive(false);
-                            savemanager.page_number.gameObject.SetActive(false);
-                            for (int k = 0; k < savemanager.save_load_page; k++)
-                            {
-                                for (int j = 0; j < savemanager.save_load; j++)
-                                {
-                                    savemanager.save_object[k][j].gameObject.SetActive(true);
-                                    Destroy(savemanager.save_object[k][j]);
-                                }
-                            }
-                            Destroy(save_canvas.GetComponent<CanvasScaler>());
-                            Destroy(save_canvas.GetComponent<GraphicRaycaster>());
-                            Destroy(save_canvas.gameObject);
-                            Destroy(save_canvas);
-                            return;
-                        }
+                        check = true;
+                        sellect_num = temp_num - 1;
+                        mouse_use = true;
+                        break;
+                    }
+                    else if (tmp.gameObject.name == savemanager.Show_Object[i].gameObject.name)
+                    {
+                        check = true;
+                        sellect_num = temp_num - 1;
+                        mouse_use = true;
+                        break;
                     }
                 }
-            }
+                if (check) break;
         }
 
+        //savemanager.save_object[savemanager.now_page][sellect_num].GetComponent<Image>().color = Color.red;
+        if (Input.GetButtonDown("Submit"))
+        {
+            if (EventSystem.current.currentSelectedGameObject == savemanager.prevpagebutton.gameObject || EventSystem.current.currentSelectedGameObject == savemanager.nextpagebutton.gameObject) return;
+            quit_time = 0;
+            //Windows
+            //FileStream fs = new FileStream(Application.streamingAssetsPath + "/SaveData/" + savemanager.Show_Object[sellect_num % savemanager.save_load].gameObject.name + ".json", FileMode.Open, FileAccess.Read);
+            //Mac (streamingAssetsPath is readonly!)
+            FileStream fs = new FileStream(Application.persistentDataPath + "/SaveData/" + savemanager.Show_Object[sellect_num % savemanager.save_load].gameObject.name + ".json", FileMode.Open, FileAccess.Read);
+            StreamReader sr = new StreamReader(fs);
+            //**注意**--------------------------------------------------------------------------------------------------------------------------------------------------------------
+            Encryption_Config ec = Resources.Load<Encryption_Config>("Prefab/Encryption");
+            //string source_file = ec.DecryptionSystem(sr.ReadToEnd(),false);
+            string source_file = ec.DecryptionSystem(sr.ReadToEnd(), true); //debug
+            ;
+            //**--------------------------------------------------------------------------------------------------------------------------------------------------------------------
+            NovelSave sd = JsonUtility.FromJson<NovelSave>(source_file);
+            sd.Load(); //パーティメンバーのロード
+            nextscene = sd.nameScene;
+
+            //Windows
+            //FileStream fs2 = new FileStream(Application.streamingAssetsPath + "/SaveData/loadtemp", FileMode.Create, FileAccess.Write);
+            //Mac (streamingAssetsPath is readonly!)
+            FileStream fs2 = new FileStream(Application.persistentDataPath + "/SaveData/loadtemp", FileMode.Create, FileAccess.Write);
+            StreamWriter sw = new StreamWriter(fs2);
+            sw.WriteLine(source_file);
+            sw.Flush();
+            fs2.Flush();
+            sw.Close();
+            fs2.Close();
+            //reading_pos = sd.reading_pos;
+            PageChangeAnim.gameObject.SetActive(false);
+            PageWaitAnim.gameObject.SetActive(false);
+            sr.Close();
+            fs.Close();
+            state = Next_Command();
+            //back_log.text = sd.backlog;
+            screen = SCREEN_STATUS.FADE_OUT;
+            savemanager.save_BackGround.gameObject.SetActive(false);
+            savemanager.nextpagebutton.gameObject.SetActive(false);
+            savemanager.prevpagebutton.gameObject.SetActive(false);
+            savemanager.page_number.gameObject.SetActive(false);
+                for (int j = 0; j < savemanager.save_load; j++)
+                {
+                    savemanager.Show_Object[j].gameObject.SetActive(true);
+                    Destroy(savemanager.Show_Object[j]);
+                }
+            Destroy(save_canvas.GetComponent<CanvasScaler>());
+            Destroy(save_canvas.GetComponent<GraphicRaycaster>());
+            Destroy(save_canvas.gameObject);
+            Destroy(save_canvas);
+            return;
+        }
+        if (!check && mouse_use)
+        {
+            EventSystem.current.SetSelectedGameObject(null);
+        }
+        else if (!mouse_use)
+        {
+            EventSystem.current.SetSelectedGameObject(savemanager.Show_Object[(sellect_num % savemanager.save_load)].gameObject);
+        }
     }
     static bool coroutine_check = false;
     //スクリーンショットを撮る関数
@@ -599,14 +711,16 @@ public class Scripter : MonoBehaviour {
         back_log_Stage.gameObject.SetActive(false);
         anim_timer = 0;
 
-        Debug.Log("Scripter Start Call");
+        //Debug.Log("Scripter Start Call");
         //**注意**--------------------------------------------------------------------------------------------------------------------------------------------------------------
         Encryption_Config ec = Resources.Load<Encryption_Config>("Prefab/Encryption");
         string temp;
+        int count = 0;
         while(sr.Peek() != -1)
         {
             string t = sr.ReadLine();
             temp = ec.DecryptionSystem(t,false);
+            count++;
             Scription test = JsonUtility.FromJson<Scription>(temp);
             switch (test.type)
             {
@@ -669,9 +783,15 @@ public class Scripter : MonoBehaviour {
             
         }
         sr.Close();
-        if (System.IO.File.Exists(Application.streamingAssetsPath + "/SaveData/loadtemp"))
+        //Windows
+        //if (System.IO.File.Exists(Application.streamingAssetsPath + "/SaveData/loadtemp"))
+        //Mac
+        if (System.IO.File.Exists(Application.persistentDataPath + "/SaveData/loadtemp"))
         {
-            FileStream fs = new FileStream(Application.streamingAssetsPath + "/SaveData/loadtemp",FileMode.Open, FileAccess.Read);
+            //Windows
+            //FileStream fs = new FileStream(Application.streamingAssetsPath + "/SaveData/loadtemp",FileMode.Open, FileAccess.Read);
+            //Mac (streamingAssetsPath is readonly!)
+            FileStream fs = new FileStream(Application.persistentDataPath + "/SaveData/loadtemp",FileMode.Open, FileAccess.Read);
             sr = new StreamReader(fs, Encoding.UTF8);
             string temp_text = sr.ReadToEnd();
             NovelSave sd = JsonUtility.FromJson<NovelSave>(temp_text);
@@ -679,7 +799,7 @@ public class Scripter : MonoBehaviour {
 
             if (sd.left_color != null)
             {
-                Debug.Log(sd.left_name);
+                //Debug.Log(sd.left_name);
                 BackScreen.left.sprite = Resources.Load<Sprite>(sd.left_name);
                 if (BackScreen.left.sprite == null) BackScreen.left.sprite = skeltonsprite;
                 BackScreen.left.color = sd.left_color;
@@ -725,7 +845,10 @@ public class Scripter : MonoBehaviour {
                 if (character_voice.clip != null) character_voice.Play();
             }
             sr.Close();
-            System.IO.File.Delete(Application.streamingAssetsPath + "/SaveData/loadtemp");
+            //Windows
+            //System.IO.File.Delete(Application.streamingAssetsPath + "/SaveData/loadtemp");
+            //Mac (streamingAssetsPath is readonly!)
+            System.IO.File.Delete(Application.persistentDataPath + "/SaveData/loadtemp");
             now = scriptions[reading_pos];
         }
         else
@@ -766,7 +889,7 @@ public class Scripter : MonoBehaviour {
                     }
                     check += log_text;
                     log_text = "";
-                    Debug.Log(check);
+                    //Debug.Log(check);
                     string[] temp = check.Split('\\');
                     check = temp[0];
                     for(int i = 1; i < temp.Length; i++)
@@ -784,7 +907,7 @@ public class Scripter : MonoBehaviour {
                         }
                     }
                     
-                    Debug.Log(check);
+                    //Debug.Log(check);
                     back_log.text += check;
                     back_log.text += "\n\n";
                 }
@@ -1109,15 +1232,17 @@ public class Scripter : MonoBehaviour {
                     return NOVEL_STATUS.NEXT;
             }
         }
-        Debug.Log(now.text);
+        //Debug.Log(now.text);
         return NOVEL_STATUS.WRITING;
     }
     string save_data = "";
     //クリック・スペースキーが押され、次のシーンに続くときの処理
     bool Operation_next()
     {
-        if (Input.GetKeyDown(KeyCode.Space) || (Input.GetMouseButtonDown(0) && !Scripter_ClickChecker.button_over ) || skip_button)
+        if (screen == SCREEN_STATUS.LOAD || screen == SCREEN_STATUS.SAVE) return false;
+        if (check_ui_print && (Input.GetButtonDown("Submit")&& !Scripter_ClickChecker.button_over ) || skip_button)
         {
+
             StartCoroutine(LoadScreenshot());
             if (state == NOVEL_STATUS.ANIMATION || state == NOVEL_STATUS.DELAY) return true;
             state = NOVEL_STATUS.NEXT;
@@ -1149,15 +1274,25 @@ public class Scripter : MonoBehaviour {
     //バックログを表示する関数<入力処理もこちらで行う>
     void Operation_BackLog()
     {
-        if (screen == SCREEN_STATUS.LOAD || screen == SCREEN_STATUS.SAVE) return;
-        if (Input.GetKeyDown(KeyCode.Escape) || Input.GetMouseButtonDown(1))
+        if (Input.GetButtonDown("Resume"))
         {
-            if (screen != SCREEN_STATUS.BACK_LOG)
+            if(screen == SCREEN_STATUS.SAVE || screen == SCREEN_STATUS.LOAD)
+            {
+                back_log_Stage.gameObject.SetActive(false);
+            }else if (screen != SCREEN_STATUS.BACK_LOG)
             {
                 back_log.rectTransform.sizeDelta = new Vector2(back_log.rectTransform.sizeDelta.x, text.preferredHeight);
                 back_log.rectTransform.sizeDelta = new Vector2(back_log.rectTransform.sizeDelta.x, text.preferredHeight);
                 back_log_Stage.gameObject.SetActive(true);
                 VScroll.verticalNormalizedPosition = 0;
+                Scrollbar[] scroll = VScroll.GetComponentsInChildren<Scrollbar>();
+                foreach(Scrollbar obj in scroll)
+                {
+                    if(obj.gameObject.name == "Scrollbar Vertical")
+                    {
+                        EventSystem.current.SetSelectedGameObject(obj.gameObject);
+                    }
+                }
                 TextBoxSize_Change.change_active = false;
                 back_log.gameObject.transform.localPosition = new Vector3(0, 0, 0);
                 
@@ -1170,18 +1305,35 @@ public class Scripter : MonoBehaviour {
             }
         }
     }
+    bool check_ui_print = true;
     // Update is called once per frame
     void Update () {
 
         //バックログ処理
         Operation_BackLog();
-        if (Input.GetKeyDown(KeyCode.LeftControl))
+        /*スキップ処理*/
+        if (Input.GetButtonDown("Cancel") && screen != SCREEN_STATUS.BACK_LOG && screen != SCREEN_STATUS.LOAD && screen != SCREEN_STATUS.SAVE)
         {
             skip_button = true;
         }
-        if (Input.GetKeyUp(KeyCode.LeftControl))
+        if (Input.GetButtonUp("Cancel") && screen != SCREEN_STATUS.BACK_LOG && screen != SCREEN_STATUS.LOAD && screen != SCREEN_STATUS.SAVE)
         {
             skip_button = false;
+        }
+        //ジョイコンでセーブボタンを押したときの処理
+        if (Input.GetAxisRaw("Horizontal") < 0 && screen == SCREEN_STATUS.MAIN)
+        {
+            SaveButton();
+        }
+        //ジョイコンでロードボタンを押したときの処理
+        if (Input.GetAxisRaw("Horizontal")>0 && screen == SCREEN_STATUS.MAIN)
+        {
+            LoadButton();
+        }
+        if (Input.GetKeyDown(KeyCode.Escape) && screen == SCREEN_STATUS.MAIN)
+        {
+            mainui.gameObject.SetActive(!mainui.gameObject.active);
+            check_ui_print = mainui.gameObject.active;
         }
         //SCREEN_STATUS分岐（バックログか、ノベルエンジンメインか、セーブ・ロードか。）
         switch(screen)
@@ -1201,7 +1353,7 @@ public class Scripter : MonoBehaviour {
                     {
                         character_voice.Stop();
                     }
-                    Debug.Log("Scripter Update Call");
+                    //Debug.Log("Scripter Update Call");
 
                     state = Next_Command();
                 }
@@ -1307,7 +1459,7 @@ public class Scripter : MonoBehaviour {
                             case ANIMATION_TYPE.ANIMATION_NO_TIME:
                                 break;
                             case ANIMATION_TYPE.ANIMATION_SYNCHRO:
-                                Debug.Log("Error;");
+                                //Debug.Log("Error;");
                                 break;
                             case ANIMATION_TYPE.FADE_IN:
                                 check = true;

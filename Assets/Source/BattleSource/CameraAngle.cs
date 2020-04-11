@@ -41,6 +41,8 @@ public class CameraAngle : MonoBehaviour {
     private float now_zoomZ = 0;
     private float now_zoomZtime = 0;
 
+    private static int rotatemode = 0; //0->1->2->3->0->... //0,3の時はキー入力上下が反転、1,2の時はキー入力左右が反転
+
     private int _zoom_Min_Max = 10;
 
     private int zoom_Min_Max
@@ -71,11 +73,12 @@ public class CameraAngle : MonoBehaviour {
 	// Use this for initialization
 	void Start () {
         CamParent = transform.root.gameObject;
-        CamParent.transform.Rotate(new Vector3(0,45,0));
+        CamParent.transform.Rotate(new Vector3(0,60,0));
         Camera.main.transform.localPosition = CameraPosition(_zoom_Min_Max);
         now_zoom = _zoom_Min_Max;
         now_zoomZ = _zoomZ_Min_Max;
-	}
+        rotatemode = 0;
+    }
 
     // Update is called once per frame
     void Update()
@@ -85,20 +88,22 @@ public class CameraAngle : MonoBehaviour {
           || BattleVal.status == STATUS.PLAYER_UNIT_MOVE || BattleVal.status == STATUS.PLAYER_UNIT_ATTACK
           || BattleVal.status == STATUS.PLAYER_UNIT_SKILL || BattleVal.status == STATUS.ENEMY_UNIT_SELECT)
         {
-            if (Input.GetKeyDown(KeyCode.A) && rotflag == 0)
+            if (Input.GetAxisRaw("RotateHorizontal") == -1 && rotflag == 0)
             {
                 rotflag = 1;
                 temp = 90 / (float)rottime * (float)rotflag;
                 //注意:QuanternionとVector3の座標計算は異なる
                 goal_rot = _CamParent.transform.rotation.eulerAngles.y + 90;
+                rotatemode = (rotatemode + 1) % 4;
             }
-            else if (Input.GetKeyDown(KeyCode.D) && rotflag == 0)
+            else if (Input.GetAxisRaw("RotateHorizontal") == 1 && rotflag == 0)
             {
                 rotflag = -1;
                 temp = 90 / (float)rottime * (float)rotflag;
                 goal_rot = _CamParent.transform.rotation.eulerAngles.y - 90;
+                rotatemode = (rotatemode + 3) % 4;
             }
-            else if (Input.GetKeyDown(KeyCode.W) && zoomflag == 0)
+            else if (Input.GetAxisRaw("RotateVertical") == 1 && zoomflag == 0)
             {
                 int zoom_times = zoom_Min_Max;
                 zoom_Min_Max -= zoom_distance;
@@ -108,7 +113,7 @@ public class CameraAngle : MonoBehaviour {
                     temp = zoom_distance / (float)zoomtime * (float)zoomflag;
                 }
             }
-            else if (Input.GetKeyDown(KeyCode.S) && zoomflag == 0)
+            else if (Input.GetAxisRaw("RotateVertical") == -1 && zoomflag == 0)
             {
                 int zoom_times = zoom_Min_Max;
                 zoom_Min_Max += zoom_distance;
@@ -118,7 +123,7 @@ public class CameraAngle : MonoBehaviour {
                     temp = zoom_distance / (float)zoomtime * (float)zoomflag;
                 }
             }
-            else if (Input.GetKeyDown(KeyCode.Q) && zoomZflag == 0)
+            else if (Input.GetAxisRaw("Lookup") == 1 && zoomZflag == 0)
             {
                 int zoom_times = zoomZ_Min_Max;
                 zoomZ_Min_Max += zoomZ_distanse;
@@ -128,7 +133,7 @@ public class CameraAngle : MonoBehaviour {
                     tempZ = zoomZ_distanse / (float)zoomtime * (float)zoomZflag;
                 }
             }
-            else if (Input.GetKeyDown(KeyCode.E) && zoomZflag == 0)
+            else if (Input.GetAxisRaw("Lookup") == -1 && zoomZflag == 0)
             {
                 int zoom_times = zoomZ_Min_Max;
                 zoomZ_Min_Max -= zoomZ_distanse;
@@ -145,7 +150,7 @@ public class CameraAngle : MonoBehaviour {
             if (now_rottime >= rottime - Time.deltaTime)
             {
                 transform.rotation = Quaternion.Euler(new Vector3(transform.rotation.eulerAngles.x, goal_rot, 0));
-                Debug.Log(goal_rot);
+                //Debug.Log(goal_rot);
                 rotflag = 0;
                 now_rottime = 0;
             }
@@ -219,5 +224,106 @@ public class CameraAngle : MonoBehaviour {
     {
         get { return _CamParent; }
         set { _CamParent = value; }
+    }
+
+    //外部から今のカメラの見てる空間座標を取得
+    public static Vector3 NowCameraLook
+    {
+        get { return goal_vector; }
+    }
+
+    //キー入力とカメラ視点の反転補正
+    public static int is_inverse_keyx
+    {
+        get
+        {
+            switch(rotatemode)
+            {
+                case 0:
+                case 3:
+                    return 1;
+
+                case 1:
+                case 2:
+
+                    return -1;
+
+                default:
+                    // error handling
+                    return 0;
+            }
+        }
+    }
+
+    public static int is_inverse_keyy
+    {
+        get
+        {
+            switch (rotatemode)
+            {
+                case 0:
+                case 3:
+                    return -1;
+
+                case 1:
+                case 2:
+
+                    return 1;
+
+                default:
+                    // error handling
+                    return 0;
+            }
+        }
+    }
+
+    public static Vector2 keypadxinput_vector2
+    {
+        get
+        {
+            switch (rotatemode)
+            {
+                case 0:
+                    return new Vector2(0, 1);
+
+                case 1:
+                    return new Vector2(-1, 0);
+
+                case 2:
+                    return new Vector2(0, -1);
+
+                case 3:
+                    return new Vector2(1, 0);
+
+                default:
+                    // error handling
+                    return new Vector2(0, 0);
+            }
+        }
+    }
+
+    public static Vector2 keypadyinput_vector2
+    {
+        get
+        {
+            switch (rotatemode)
+            {
+                case 0:
+                    return new Vector2(1, 0);
+
+                case 1:
+                    return new Vector2(0, 1);
+
+                case 2:
+                    return new Vector2(-1, 0);
+
+                case 3:
+                    return new Vector2(0, -1);
+
+                default:
+                    // error handling
+                    return new Vector2(0, 0);
+            }
+        }
     }
 }

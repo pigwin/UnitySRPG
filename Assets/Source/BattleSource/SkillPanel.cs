@@ -28,10 +28,15 @@ public class SkillPanel : MonoBehaviour
             textIsMgc.text = "物理/";
         if (skill.s_atk < 0)
             textIsMgc.text += "回復";
-        else
+        else if (skill.s_atk > 0)
             textIsMgc.text += "攻撃";
+        else
+            textIsMgc.text += "特殊";
 
-        textSkillRate.text = string.Format("威力:x{0:0.00}",Mathf.Abs(skill.s_atk));
+        if(skill.s_atk != 0)
+            textSkillRate.text = string.Format("威力:x{0:0.00}",Mathf.Abs(skill.s_atk));
+        else
+            textSkillRate.text = string.Format("威力:---");
 
         textSkillUse.text = string.Format("使用回数:{0}回/{1}回", skill.use, skill.maxuse);
 

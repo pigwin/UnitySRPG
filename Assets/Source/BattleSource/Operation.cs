@@ -21,8 +21,9 @@ public class Operation : MonoBehaviour {
     private int mouse_y = -1;  //マップ内にマウスがない（初期値）
     private int mouse_x = -1;  //マップ内にマウスがない（初期値）
 
-    bool mouse_click = false;
+    public static bool mouse_click = false; //ちょっと嫌だが仕方がない
     bool right_mouse_click = false;
+    bool resume_button_click = false;
 
     [Header("Main Canvas")]
     public Canvas canvas;
@@ -205,6 +206,8 @@ public class Operation : MonoBehaviour {
         BattleVal.selectY = -1;
         BattleVal.id2index = new Dictionary<string, Unitdata>();
         BattleVal.title_name = stageTitle;
+        BattleVal.str_victoryorder = victoryOrder;
+        BattleVal.str_defeatorder = defeatOrder;
         BattleVal.turn = 0;
         BattleVal.turnplayer = 1;
         BattleVal.menuflag = false;
@@ -215,7 +218,10 @@ public class Operation : MonoBehaviour {
         BattleVal.actions = new Stack<Action>();
 
         //セーブデータをLoadされたか判定
-        if (System.IO.File.Exists(Application.streamingAssetsPath + loadtemp))
+        //Windows
+        //if (System.IO.File.Exists(Application.streamingAssetsPath + loadtemp))
+        //Mac (streamingAssetsPath is readonly!)
+        if (System.IO.File.Exists(Application.persistentDataPath + loadtemp))
             BattleVal.status = STATUS.DRAW_STAGE_FROM_LOADDATA;
         else
             BattleVal.status = STATUS.DRAW_STAGE;
@@ -229,9 +235,9 @@ public class Operation : MonoBehaviour {
         StopCoroutine(EnemyCoroutine());
 
         //手番のセット
-        Debug.Log(BattleVal.turnplayer);
+        //Debug.Log(BattleVal.turnplayer);
         BattleVal.turnplayer = (BattleVal.turnplayer + 1) % 2;
-        Debug.Log(BattleVal.turnplayer);
+        //Debug.Log(BattleVal.turnplayer);
 
 
         //ユニットの行動可能性・攻撃可能性の更新
@@ -241,6 +247,13 @@ public class Operation : MonoBehaviour {
             {
                 unit.movable = true;
                 unit.atackable = true;
+                //行動不能・攻撃不能系の状態異常
+                foreach(Condition condition in unit.status.conditions)
+                {
+                    if (condition.forbiddenAttack) unit.atackable = false;
+                    if (condition.forbiddenMove) unit.movable = false;
+                    if (!unit.atackable && !unit.movable) break;
+                }
             }
         }
 
@@ -267,6 +280,9 @@ public class Operation : MonoBehaviour {
                     Vector3 temp = new Vector3();
                     Mapclass.TranslateMapCoordToPosition(ref temp, unit.x, unit.y);
                     CameraAngle.CameraPoint(temp);
+                    mouse_x = unit.x;
+                    mouse_y = unit.y;
+                    Mapclass.DrawCharacter(SelectTile, mouse_x, mouse_y);
                     break;
                 }
             }
@@ -305,7 +321,7 @@ public class Operation : MonoBehaviour {
         {
             string str = event_condition[i];
             string[] temp = str.Split(',');
-            Debug.Log(temp[0]);
+            //Debug.Log(temp[0]);
             bool check = false;
             foreach (int a in used_event)
             {
@@ -337,7 +353,7 @@ public class Operation : MonoBehaviour {
                 {
                     string s = sr.ReadLine();
                     string t = ec.DecryptionSystem(s, false);
-                    Debug.Log(t);
+                    //Debug.Log(t);
                     string[] a = t.Split(',');
                     if (a[0].Equals(temp[1]))
                     {
@@ -360,6 +376,7 @@ public class Operation : MonoBehaviour {
         switch (draw_title_state)
         {
             case DRAW_TITLE_STATE.MASKIN:
+                SelectTile.SetActive(false);
                 if (titleCanvas.gameObject.GetComponent<FadeUIController>().FadeIn(fadeintimer))
                     draw_title_state = DRAW_TITLE_STATE.SETTING;
                 break;
@@ -417,7 +434,7 @@ public class Operation : MonoBehaviour {
             //次へ
             case DRAW_TITLE_STATE.NEXT:
                 //クリック待ち
-                if (Input.GetMouseButton(0))
+                if (Input.GetButtonDown("Submit"))
                 {
 
                     //キャンバス切り替え
@@ -426,7 +443,8 @@ public class Operation : MonoBehaviour {
                     //セットアップフェイズへ
                     BattleVal.status = STATUS.SETUP; //->セットアップ完了時にIFCommand.Initialization();
                     UnitSetupWindow.SetActive(true);
-                    
+                    SelectTile.SetActive(true);
+
                     //Debug Mode
                     //BattleVal.status = STATUS.TURNCHANGE;
                     //一応
@@ -438,10 +456,15 @@ public class Operation : MonoBehaviour {
         }
     }
 
-
     // Update is called once per frame
     void Update() {
-        Debug.Log(BattleVal.status);
+        //Debug.Log(BattleVal.status);
+        if (BattleVal.status == STATUS.PLAYER_UNIT_SELECT 
+            || BattleVal.status == STATUS.TURNCHANGE)
+        {
+            EventCheck();
+            Victory_or_Defeat();
+        }
 
         if (isBattlePart)
         {
@@ -473,6 +496,7 @@ public class Operation : MonoBehaviour {
                     enemy_show_state = 0;
                     CharaStatusPrinter.Show_Enemy_Range(enemy_show_state);
                     CharaStatusPrinter.HideStatus();
+                    SelectTile.SetActive((BattleVal.turnplayer != 0));
 
                     SetupTurnChange();
                     //効果音再生
@@ -502,6 +526,9 @@ public class Operation : MonoBehaviour {
                                 Vector3 temp = new Vector3();
                                 Mapclass.TranslateMapCoordToPosition(ref temp, unit.x, unit.y);
                                 CameraAngle.CameraPoint(temp);
+                                mouse_x = unit.x;
+                                mouse_y = unit.y;
+                                Mapclass.DrawCharacter(SelectTile, mouse_x, mouse_y);
                                 break;
                             }
                         }
@@ -558,7 +585,7 @@ public class Operation : MonoBehaviour {
                             break;
 
                         case DRAW_GAMEOVER_STATE.FADEOUTSTART:
-                            Debug.Log("coroutine");
+                            //Debug.Log("coroutine");
 
                             break;
 
@@ -594,7 +621,37 @@ public class Operation : MonoBehaviour {
                             }
                             else
                             {
-                                BattleVal.selectedUnit.gobj.GetComponent<Animator>().Play(victoryanim);
+                                try
+                                {
+                                    BattleVal.selectedUnit.gobj.GetComponent<Animator>().Play(victoryanim);
+
+                                }
+                                catch (MissingReferenceException ex)
+                                {
+                                    //ターン終了時の状態異常などで決着し、selectedUnitがトドメを刺したキャラじゃない場合
+                                    foreach (Unitdata unit in BattleVal.unitlist)
+                                    {
+                                        if (unit.team == 0)
+                                        {
+                                            BattleVal.selectedUnit = unit;
+                                            BattleVal.selectedUnit.gobj.GetComponent<Animator>().Play(victoryanim);
+                                            break;
+                                        }
+                                    }
+                                }
+                                catch(NullReferenceException ex)
+                                {
+                                    //ターン終了時の状態異常などで決着し、selectedUnitがトドメを刺したキャラじゃない場合
+                                    foreach (Unitdata unit in BattleVal.unitlist)
+                                    {
+                                        if (unit.team == 0)
+                                        {
+                                            BattleVal.selectedUnit = unit;
+                                            BattleVal.selectedUnit.gobj.GetComponent<Animator>().Play(victoryanim);
+                                            break;
+                                        }
+                                    }
+                                }
                                 draw_stageclear_state = DRAW_STAGECLEAR_STATE.VICTORYANIM;
                             }
                             break;
@@ -683,13 +740,14 @@ public class Operation : MonoBehaviour {
                     messageBoxflag = false;
                 }
             }
-            //プレイヤーのマウスクリック処理
+            //プレイヤー操作
             if (BattleVal.turnplayer == 0 || BattleVal.status == STATUS.SETUP)
             {
-                if (!EventSystem.current.IsPointerOverGameObject())
+                //マウス操作の判定
+                if (BattleVal.is_mouseinput && !EventSystem.current.IsPointerOverGameObject())
                     GetMousePosition();
-                //右クリック時の処理
-                if (Input.GetMouseButton(1))
+                //キャンセルボタン時の処理
+                if (Input.GetButtonDown("Cancel"))
                 {
                     if (!right_mouse_click)
                     {
@@ -699,6 +757,52 @@ public class Operation : MonoBehaviour {
                 }
                 else
                     right_mouse_click = false;
+
+                //キーボード（パッド）操作の判定
+                //マップ移動処理
+                if(!BattleVal.is_mouseinput 
+                    && (Mathf.Abs(Input.GetAxisRaw("Horizontal")) == 1 || Mathf.Abs(Input.GetAxisRaw("Vertical")) == 1))
+                {
+                    //セレクトマスの移動
+                    if (!BattleVal.sysmenuflag && !BattleVal.menuflag && enemy_show_state != 1
+                     &&(  BattleVal.status == STATUS.PLAYER_UNIT_SELECT
+                       || BattleVal.status == STATUS.PLAYER_UNIT_MOVE
+                       || BattleVal.status == STATUS.PLAYER_UNIT_ATTACK
+                       || BattleVal.status == STATUS.PLAYER_UNIT_SKILL
+                       || (BattleVal.status == STATUS.SETUP && CharaSetup.mode_Field)))
+                        GetKeypadPosition();
+                }
+                else
+                {
+                    //キーが離されてたら、次回入力を直ちにできるようにする
+                    delta_keypad_time = interval_keypad_time;
+                }
+                //決定ボタン
+                if(!BattleVal.is_mouseinput && !BattleVal.sysmenuflag 
+                    && !(BattleVal.status == STATUS.SETUP && !CharaSetup.mode_Field))
+                {
+                    ActLeftClick();
+                }
+                //巻き戻しボタン
+                if (Input.GetButtonDown("Resume") && BattleVal.status == STATUS.PLAYER_UNIT_SELECT
+                    && !BattleVal.sysmenuflag)
+                {
+                    if (!resume_button_click)
+                    {
+                        if (BattleVal.actions.Count != 0)
+                        {
+                            seAudioSource.PlayOneShot(seButtonCancel);
+
+                            Resume_Action();
+
+                            resume_button_click = true;
+                        }
+                    }
+                }
+                else
+                    resume_button_click = false;
+
+                UnitFeed();
             }
         }
         else
@@ -714,7 +818,7 @@ public class Operation : MonoBehaviour {
     }
 
 
-    //セレクトタイルをマップ上に描画
+    //セレクトタイルをマップ上に描画(マウスモード時)
     void DrawSelectTile()
     {
         //以前のを保存
@@ -731,7 +835,7 @@ public class Operation : MonoBehaviour {
     }
 
     //敵キャラクリック時のステート
-    int enemy_show_state = 0;
+    public static int enemy_show_state = 0;
 
     //マウスの実座標取得→マウス左クリック関連の処理
     void GetMousePosition()
@@ -752,112 +856,164 @@ public class Operation : MonoBehaviour {
 
                 //セレクトタイルの表示と、mouse_x,mouse_yの更新
                 DrawSelectTile();
-
+                
                 //マウスオーバー系の処理
-                switch (BattleVal.status)
-                {
-                    case STATUS.PLAYER_UNIT_SELECT:
-                        EventCheck();
-                        Victory_or_Defeat();
-                        //敵のスキル範囲を表示している場合
-                        if (enemy_show_state > 3)
-                        {
-                            if (CharaSkill.Is_OverAttackable(mouse_x, mouse_y))
-                            {
-                                CharaSkill.Set_Attackarea(mouse_x, mouse_y);
-                                CharaSkill.Show_Attackarea();
-                            }
-                            else
-                            {
-                                CharaSkill.Destroy_Areatile();
-                            }
-                        }
-                        break;
-                    case STATUS.PLAYER_UNIT_ATTACK:
-                        //ユニットがマウス位置にいて攻撃可能かを判定する
-                        if (CharaAttack.Is_attackable(mouse_x, mouse_y))
-                        {
-                            if (!(mouse_x == tempmouse_x && mouse_y == tempmouse_y))
-                            {
-                                int predamage = CharaAttack.Calc_Damage(BattleVal.selectedUnit,
-                                    BattleVal.id2index[string.Format("{0},{1}", mouse_x, mouse_y)]);
-                                float predex = CharaAttack.Calc_Dexterity(BattleVal.selectedUnit,
-                                    BattleVal.id2index[string.Format("{0},{1}", mouse_x, mouse_y)]);
-                                float prerate = CharaAttack.Calc_CriticalRate(BattleVal.selectedUnit,
-                                    BattleVal.id2index[string.Format("{0},{1}", mouse_x, mouse_y)]);
-                                CharaStatusPrinter.Setup_DrawTargetStatus(mouse_x, mouse_y, predamage, true, predex, prerate);
-                            } 
-                        }
-                        else
-                            CharaStatusPrinter.HideTargetStatus();
-                        break;
-                    case STATUS.PLAYER_UNIT_SKILL:
-                        //範囲攻撃のエリア描画
-                        if (CharaSkill.Is_OverAttackable(mouse_x, mouse_y))
-                        {
-                            CharaSkill.Set_Attackarea(mouse_x, mouse_y);
-                            CharaSkill.Show_Attackarea();
-
-                            //ユニットがマウス位置にいる
-                            if (CharaSkill.Is_attackableTile(mouse_x, mouse_y))
-                            {
-                                //マウス位置のターゲットのみステータス表示（サモンナイト3準拠）
-                                if (!(mouse_x == tempmouse_x && mouse_y == tempmouse_y))
-                                {
-                                    int predamage = CharaSkill.Calc_Damage(BattleVal.selectedUnit,
-                                        BattleVal.id2index[string.Format("{0},{1}", mouse_x, mouse_y)]);
-                                    CharaStatusPrinter.Setup_DrawTargetStatus(mouse_x, mouse_y, predamage);
-                                }
-                            }
-                            else
-                                CharaStatusPrinter.HideTargetStatus();
-
-                        }
-                        else
-                        {
-                            CharaSkill.Destroy_Areatile();
-                        }                        
-
-                        break;
-                }
+                ActMouseOver(tempmouse_x, tempmouse_y);
 
                 //左クリック時の処理
                 ActLeftClick();
             }
             else
             {
-                mouse_y = -1;
-                mouse_x = -1;
+                //mouse_y = -1;
+                //mouse_x = -1;
                 //セレクトタイルを非表示に
                 SelectTile.SetActive(false);
             }
         }
     }
 
+    public void ActMouseOver(int tempmouse_x, int tempmouse_y)
+    {
+        CharaStatusPrinter.mapheight = BattleVal.mapdata[(int)MapdataList.MAPHEIGHT][mouse_y][mouse_x];
+       
+        //マウスオーバー系の処理
+        switch (BattleVal.status)
+        {
+            case STATUS.SETUP:
+                //敵のスキル範囲を表示している場合
+                if (enemy_show_state > 3)
+                {
+                    if (CharaSkill.Is_OverAttackable(mouse_x, mouse_y))
+                    {
+                        CharaSkill.Set_Attackarea(mouse_x, mouse_y);
+                        CharaSkill.Show_Attackarea();
+                    }
+                    else
+                    {
+                        CharaSkill.Destroy_Areatile();
+                    }
+                }
+                //メニューを開いていない・詳細表示をしていない場合・このフレームでクリックをしていない
+                if (!BattleVal.menuflag && enemy_show_state == 0
+                    && (mouse_x != tempmouse_x || mouse_y != tempmouse_y)
+                    && !Input.GetButtonDown("Submit"))
+                {
+                    //キャラがいるなら
+                    if (BattleVal.id2index.ContainsKey(string.Format("{0},{1}", mouse_x, mouse_y)))
+                    {
+                        CharaStatusPrinter.SetUp_DrawStatus(false, mouse_x, mouse_y);
+                    }
+                    else
+                    {
+                        CharaStatusPrinter.HideStatus();
+                    }
+                }
+                break;
+            case STATUS.PLAYER_UNIT_SELECT:
+                EventCheck();
+                Victory_or_Defeat();
+                //敵のスキル範囲を表示している場合
+                if (enemy_show_state > 3)
+                {
+                    if (CharaSkill.Is_OverAttackable(mouse_x, mouse_y))
+                    {
+                        CharaSkill.Set_Attackarea(mouse_x, mouse_y);
+                        CharaSkill.Show_Attackarea();
+                    }
+                    else
+                    {
+                        CharaSkill.Destroy_Areatile();
+                    }
+                }
+                else
+                {
+                    //メニューを開いていない・詳細表示をしていない場合・このフレームでクリックをしていない
+                    if(!BattleVal.menuflag && enemy_show_state == 0
+                        && (mouse_x != tempmouse_x || mouse_y != tempmouse_y)
+                        && !Input.GetButtonDown("Submit"))
+                    {
+
+                        //キャラがいるなら
+                        if (BattleVal.id2index.ContainsKey(string.Format("{0},{1}", mouse_x, mouse_y)))
+                        {
+                            CharaStatusPrinter.SetUp_DrawStatus(false, mouse_x, mouse_y);
+                        }
+                        else
+                        {
+                            CharaStatusPrinter.HideStatus();
+                        }
+                    }
+                }
+                break;
+            case STATUS.PLAYER_UNIT_ATTACK:
+                //ユニットがマウス位置にいて攻撃可能かを判定する
+                if (CharaAttack.Is_attackable(mouse_x, mouse_y))
+                {
+                    if (!(mouse_x == tempmouse_x && mouse_y == tempmouse_y))
+                    {
+                        int predamage = CharaAttack.Calc_Damage(BattleVal.selectedUnit,
+                            BattleVal.id2index[string.Format("{0},{1}", mouse_x, mouse_y)]);
+                        float predex = CharaAttack.Calc_Dexterity(BattleVal.selectedUnit,
+                            BattleVal.id2index[string.Format("{0},{1}", mouse_x, mouse_y)]);
+                        float prerate = CharaAttack.Calc_CriticalRate(BattleVal.selectedUnit,
+                            BattleVal.id2index[string.Format("{0},{1}", mouse_x, mouse_y)]);
+                        CharaStatusPrinter.Setup_DrawTargetStatus(mouse_x, mouse_y, predamage, true, predex, prerate);
+                    }
+                }
+                else
+                    CharaStatusPrinter.HideTargetStatus();
+                break;
+            case STATUS.PLAYER_UNIT_SKILL:
+                //範囲攻撃のエリア描画
+                if (CharaSkill.Is_OverAttackable(mouse_x, mouse_y))
+                {
+                    CharaSkill.Set_Attackarea(mouse_x, mouse_y);
+                    CharaSkill.Show_Attackarea();
+
+                    //ユニットがマウス位置にいる
+                    if (CharaSkill.Is_attackableTile(mouse_x, mouse_y))
+                    {
+                        //マウス位置のターゲットのみステータス表示（サモンナイト3準拠）
+                        if (!(mouse_x == tempmouse_x && mouse_y == tempmouse_y))
+                        {
+                            int predamage = CharaSkill.Calc_Damage(BattleVal.selectedUnit,
+                                BattleVal.id2index[string.Format("{0},{1}", mouse_x, mouse_y)]);
+                            CharaStatusPrinter.Setup_DrawTargetStatus(mouse_x, mouse_y, predamage);
+                        }
+                    }
+                    else
+                        CharaStatusPrinter.HideTargetStatus();
+
+                }
+                else
+                {
+                    CharaSkill.Destroy_Areatile();
+                }
+
+                break;
+        }
+    }
+
     public void ActLeftClick()
     {
         //左クリック時の処理
-        if (Input.GetMouseButton(0) && mouse_x != -1 && mouse_y != -1)
+        if (!mouse_click && Input.GetButtonDown("Submit") && mouse_x != -1 && mouse_y != -1)
         {
+
             switch (BattleVal.status)
             {
                 case STATUS.PLAYER_UNIT_SELECT:
                 case STATUS.SETUP:
                     //カメラの視点移動
-                    if (!mouse_click && !CameraAngle.moveFlag)
+                    if (!CameraAngle.moveFlag && CharaSkill.skillbuttonlist.Count == 0)
                     {
                         CharaSkill.Destory_SkillButtonList();
                         Vector3 mousepos = new Vector3();
                         Mapclass.TranslateMapCoordToPosition(ref mousepos, mouse_x, mouse_y);
                         
-                        //敵キャラクターをクリックした場合は視点移動しない
-                        if (BattleVal.id2index.ContainsKey(string.Format("{0},{1}",mouse_x,mouse_y)))
-                        {
-                            if(BattleVal.id2index[string.Format("{0},{1}", mouse_x, mouse_y)].team == 0)
-                                CameraAngle.CameraPoint(mousepos);
-                        }
-                        else
-                            CameraAngle.CameraPoint(mousepos);
+                        
+                        CameraAngle.CameraPoint(mousepos);
                         /*
                         if (!BattleVal.id2index.ContainsKey(string.Format("{0},{1}", mouse_x, mouse_y)))
                             CameraAngle.CameraPoint(mousepos);
@@ -888,7 +1044,7 @@ public class Operation : MonoBehaviour {
                             if(tempX == BattleVal.selectX && tempY == BattleVal.selectY)
                             {
                                 //移動モードを終了し、ステータス詳細表示へ進む（Switchを抜けない）
-                                CharaSetup.state = CharaSetup.CharaSetupStatus.MOVEEND;
+                                if(BattleVal.is_mouseinput) CharaSetup.state = CharaSetup.CharaSetupStatus.MOVEEND;
                             }
                             else
                             {
@@ -934,21 +1090,48 @@ public class Operation : MonoBehaviour {
                             Unitdata temp = BattleVal.id2index[string.Format("{0},{1}", BattleVal.selectX, BattleVal.selectY)];
                             //選択中のユニットを更新
                             BattleVal.selectedUnit = temp;
-                            //同じ敵キャラをクリックした時の処理
-                            if (temp.team == 1 && tempX == BattleVal.selectX && tempY == BattleVal.selectY)
+                            //敵キャラをクリックした時の処理、または移動可能範囲に居ない味方キャラをセットアップフェイズで選択した場合
+                            if (temp.team == 1 || (BattleVal.status == STATUS.SETUP && CharaSetup.state == CharaSetup.CharaSetupStatus.CHECKENEMY))
                             {
-                                //2回以上クリック時は視点移動
-                                CameraAngle.CameraPoint(mousepos);
-                                enemy_show_state += 1;
+                                //同じ敵キャラをクリックした時の処理
+                                if(tempX == BattleVal.selectX && tempY == BattleVal.selectY)
+                                    enemy_show_state += 1;
+                                else
+                                    enemy_show_state = 1; //詳細表示
                                 enemy_show_state %= 4 + temp.skills.Count; //消去・詳細表示・移動範囲・攻撃範囲・スキル範囲
-                                if (enemy_show_state == 0) seAudioSource.PlayOneShot(seButtonCancel);
+
+                                if (BattleVal.status == STATUS.SETUP)
+                                {
+                                    //セットアップ時のフラグ管理
+                                    bool selinposlist = false;
+                                    foreach (int[] pos in CharaSetup.unitsetposlist)
+                                    {
+                                        if (pos[0] == BattleVal.selectX && pos[1] == BattleVal.selectY)
+                                        {
+                                            selinposlist = true;
+                                            break;
+                                        }
+                                    }
+                                    if (selinposlist)
+                                    {
+                                        enemy_show_state = 0;
+                                        CharaSetup.state = CharaSetup.CharaSetupStatus.MOVE; //移動モードフラグON
+                                    } 
+                                }
+
+                                if (enemy_show_state == 0)
+                                {
+                                    seAudioSource.PlayOneShot(seButtonCancel);
+                                    if (BattleVal.status == STATUS.SETUP && CharaSetup.state == CharaSetup.CharaSetupStatus.CHECKENEMY) CharaSetup.state = CharaSetup.CharaSetupStatus.SET;
+                                }
                                 else seAudioSource.PlayOneShot(seButtonOK);
+
                                 CharaStatusPrinter.Show_Enemy_Range(enemy_show_state);
 
                             }
                             //味方キャラをクリック時（メニューがまだ開かれてない）
                             else if (!(tempX == BattleVal.selectX && tempY == BattleVal.selectY)
-                                || (tempX == BattleVal.selectX && tempY == BattleVal.selectY && !BattleVal.menuflag && !(BattleVal.status == STATUS.SETUP)))
+                                || (tempX == BattleVal.selectX && tempY == BattleVal.selectY && !BattleVal.menuflag && !(BattleVal.status == STATUS.SETUP) && enemy_show_state==0))
                             {
                                 seAudioSource.PlayOneShot(seButtonOK);
                                 enemy_show_state = 0;
@@ -965,23 +1148,31 @@ public class Operation : MonoBehaviour {
                                     }
                                 }
                                 if (BattleVal.status == STATUS.SETUP
-                                 && selinposlist
                                  && CharaSetup.state == CharaSetup.CharaSetupStatus.SET)
                                 {
-                                    CharaSetup.state = CharaSetup.CharaSetupStatus.MOVE; //移動モードフラグON
+                                    if(selinposlist) CharaSetup.state = CharaSetup.CharaSetupStatus.MOVE; //移動モードフラグON
+                                    else
+                                    {
+                                        //移動可能範囲に居ない味方キャラをセットアップフェイズで選択した場合
+                                        enemy_show_state = 1;
+                                        CharaSetup.state = CharaSetup.CharaSetupStatus.CHECKENEMY;
+                                        CharaStatusPrinter.Show_Enemy_Range(enemy_show_state);
+                                    }
                                 }
                             }
                             //同じ味方キャラをクリックしたとき
                             else if (temp.team == 0 && tempX == BattleVal.selectX && tempY == BattleVal.selectY)
                             {
-                                enemy_show_state += 1;
-                                enemy_show_state %= 2; //消去・詳細表示
-                                if (enemy_show_state == 0) seAudioSource.PlayOneShot(seButtonCancel);
-                                else seAudioSource.PlayOneShot(seButtonOK);
-                                CharaStatusPrinter.Show_Enemy_Range(enemy_show_state);
-                                BattleVal.menuflag = false;
-                                //2回以上クリック時は視点移動
-                                CameraAngle.CameraPoint(mousepos);
+                                if(BattleVal.is_mouseinput)
+                                {
+                                    enemy_show_state += 1;
+                                    enemy_show_state %= 2; //消去・詳細表示
+                                    if (enemy_show_state == 0) seAudioSource.PlayOneShot(seButtonCancel);
+                                    else seAudioSource.PlayOneShot(seButtonOK);
+
+                                    CharaStatusPrinter.Show_Enemy_Range(enemy_show_state);
+                                    BattleVal.menuflag = false;
+                                }
                                 //セットアップ時のフラグ管理
                                 bool selinposlist = false;
                                 foreach (int[] pos in CharaSetup.unitsetposlist)
@@ -993,11 +1184,27 @@ public class Operation : MonoBehaviour {
                                     }
                                 }
                                 if (BattleVal.status == STATUS.SETUP
-                                 && selinposlist
                                  && CharaSetup.state == CharaSetup.CharaSetupStatus.SET
                                  && enemy_show_state == 0)
                                 {
-                                    CharaSetup.state = CharaSetup.CharaSetupStatus.MOVE; //移動モードフラグON
+                                    //効果音重複回避
+                                    if(selinposlist)
+                                    {
+                                        if (!BattleVal.is_mouseinput) seAudioSource.PlayOneShot(seButtonOK);
+                                        CharaSetup.state = CharaSetup.CharaSetupStatus.MOVE; //移動モードフラグON
+                                    }
+                                    else
+                                    {
+                                        
+                                        //移動可能範囲に居ない味方キャラをセットアップフェイズで選択した場合
+                                        if (!BattleVal.is_mouseinput)
+                                        {
+                                            seAudioSource.PlayOneShot(seButtonOK);
+                                            enemy_show_state = 1;
+                                            CharaStatusPrinter.Show_Enemy_Range(enemy_show_state);
+                                        }
+                                        CharaSetup.state = CharaSetup.CharaSetupStatus.CHECKENEMY;
+                                    }
                                 }
 
                             }
@@ -1007,6 +1214,7 @@ public class Operation : MonoBehaviour {
                             enemy_show_state = 0;
                             CharaStatusPrinter.Show_Enemy_Range(enemy_show_state);
                             CharaStatusPrinter.HideStatus();
+                            if (BattleVal.status == STATUS.SETUP) CharaSetup.state = CharaSetup.CharaSetupStatus.SET;
                             //スキルボタンリスト消去
                             CharaSkill.Destory_SkillButtonList();
                         }
@@ -1038,6 +1246,11 @@ public class Operation : MonoBehaviour {
                         //BattleVal.statusを戦闘中に変更
                         CharaAttack.Destroy_Attackabletile();
                         BattleVal.status = STATUS.BATTLE;
+
+                        //マウスセルを戻す
+                        mouse_x = BattleVal.selectX;
+                        mouse_y = BattleVal.selectY;
+                        Mapclass.DrawCharacter(SelectTile, mouse_x, mouse_y);
                     }
                     break;
                 case STATUS.PLAYER_UNIT_SKILL:
@@ -1055,9 +1268,15 @@ public class Operation : MonoBehaviour {
                         BattleVal.status = STATUS.USESKILL;
                         //スキルボタンリスト消去
                         CharaSkill.Destory_SkillButtonList();
+
+                        //マウスセルを戻す
+                        mouse_x = BattleVal.selectX;
+                        mouse_y = BattleVal.selectY;
+                        Mapclass.DrawCharacter(SelectTile, mouse_x, mouse_y);    
                     }
                     break;
             }
+
         }
         else
         {
@@ -1065,11 +1284,122 @@ public class Operation : MonoBehaviour {
         }
     }
 
-    //右クリック時の処理
+    //キー入力待ち時間
+    [SerializeField] const float interval_keypad_time = 0.15f;
+    float delta_keypad_time = interval_keypad_time;
+    //キーボード（パッド）によるマップ座標移動
+    //視点のマップ座標はmouse_x,mouse_yに保管されている
+    void GetKeypadPosition()
+    {
+        //一定時間待つ
+        if(delta_keypad_time < interval_keypad_time)
+        {
+            delta_keypad_time += Time.deltaTime;
+            return;
+        }
+
+        delta_keypad_time = 0;
+        //もし前回の入力が初期値・例外なら
+        if (mouse_x == -1)
+        {
+            //カメラの中心座標を前回入力に
+            Vector3 temp = CameraAngle.NowCameraLook;
+            Mapclass.TranslatePositionToMapCoord(temp, ref mouse_x, ref mouse_y);
+        }
+
+        int tempmouse_x = mouse_x;
+        int tempmouse_y = mouse_y;
+
+        //方向を加算
+        /*
+        if (Input.GetAxisRaw("Horizontal") > 0) mouse_x += CameraAngle.is_inverse_keyx;
+        if (Input.GetAxisRaw("Horizontal") < 0) mouse_x -= CameraAngle.is_inverse_keyx;
+        if (Input.GetAxisRaw("Vertical") > 0) mouse_y += CameraAngle.is_inverse_keyy;
+        if (Input.GetAxisRaw("Vertical") < 0) mouse_y -= CameraAngle.is_inverse_keyy;
+        */
+        Vector2 keypadinput = new Vector2();
+        if (Input.GetAxisRaw("Horizontal") > 0) keypadinput = CameraAngle.keypadxinput_vector2;
+        if (Input.GetAxisRaw("Horizontal") < 0) keypadinput = -CameraAngle.keypadxinput_vector2;
+        if (Input.GetAxisRaw("Vertical") > 0) keypadinput = CameraAngle.keypadyinput_vector2;
+        if (Input.GetAxisRaw("Vertical") < 0) keypadinput = -CameraAngle.keypadyinput_vector2;
+
+        mouse_x += (int)keypadinput.x;
+        mouse_y += (int)keypadinput.y;
+
+        //上限を超えるようなら前回のものに戻す
+        if (!Mapclass.is_Inmap(mouse_x,mouse_y))
+        {
+            
+            mouse_x = tempmouse_x;
+            mouse_y = tempmouse_y;
+        }
+        else
+        {
+            //透明マスの場合
+            if(BattleVal.mapdata[(int)MapdataList.MAPTEXTURE][mouse_y][mouse_x] == 0)
+            {
+                //mouse_x = tempmouse_x;
+                //mouse_y = tempmouse_y;
+            }
+        }
+
+        Mapclass.DrawCharacter(SelectTile, mouse_x, mouse_y);
+        SelectTile.SetActive(true);
+
+        //カメラの移動
+        Vector3 newmousepos = new Vector3();
+        Mapclass.TranslateMapCoordToPosition(ref newmousepos, mouse_x, mouse_y);
+        CameraAngle.CameraPoint(newmousepos);
+
+        //マウスオーバー系の処理
+        ActMouseOver(tempmouse_x, tempmouse_y);
+    }
+
+    //右クリック・キャンセルボタン時の処理
     public void ActRightClick()
     {
+        Vector3 newmousepos = new Vector3();
+
         switch (BattleVal.status)
         {
+            //出撃選択時
+            case STATUS.SETUP:
+                //キーボードモード時
+                if(!BattleVal.is_mouseinput)
+                {
+                    if (enemy_show_state != 0)
+                    {
+                        //詳細表示等消去処理
+                        enemy_show_state = 0;
+                        CharaStatusPrinter.Show_Enemy_Range(enemy_show_state);
+                    }
+                    /*
+                    try
+                    {
+                        mouse_x = BattleVal.selectedUnit.x;
+                        mouse_y = BattleVal.selectedUnit.y;
+                        Mapclass.DrawCharacter(SelectTile, mouse_x, mouse_y);
+                    }
+                    catch(NullReferenceException ex)
+                    {
+
+                    }
+                    */
+
+                    if (CharaSetup.state == CharaSetup.CharaSetupStatus.MOVEDO)
+                    {
+                        seAudioSource.PlayOneShot(seButtonCancel);
+                        CharaSetup.state = CharaSetup.CharaSetupStatus.MOVEEND;
+
+                    }
+                    else if(CharaSetup.state == CharaSetup.CharaSetupStatus.SET)
+                    {
+                        Mapclass.TranslatePositionToMapCoord(CameraAngle._CamParent.transform.position, ref mouse_x, ref mouse_y);
+                        Mapclass.DrawCharacter(SelectTile, mouse_x, mouse_y);
+                    }
+
+                }
+                break;
             //ユニット選択モード中ならば、「システムメニュー」を出す/消す
             case STATUS.PLAYER_UNIT_SELECT:
                 seAudioSource.PlayOneShot(seButtonCancel);
@@ -1078,8 +1408,14 @@ public class Operation : MonoBehaviour {
                     CharaSkill.Destory_SkillButtonList();
                 else if(enemy_show_state != 0)
                 {
+                    //詳細表示等消去処理
                     enemy_show_state = 0;
                     CharaStatusPrinter.Show_Enemy_Range(enemy_show_state);
+                    CharaStatusPrinter.SetUp_DrawStatus();
+                }
+                else if(BattleVal.menuflag)
+                {
+                    BattleVal.menuflag = false;
                 }
                 else
                     BattleVal.sysmenuflag ^= true; //フラグの切り替え
@@ -1090,6 +1426,14 @@ public class Operation : MonoBehaviour {
 
                 CharaMove.Destroy_Movabletile();
                 CharaStatusPrinter.SetUp_DrawStatus();
+                //マウスセルを戻す
+                mouse_x = BattleVal.selectX;
+                mouse_y = BattleVal.selectY;
+                Mapclass.DrawCharacter(SelectTile, mouse_x, mouse_y);
+                //カメラの移動
+                Mapclass.TranslateMapCoordToPosition(ref newmousepos, mouse_x, mouse_y);
+                CameraAngle.CameraPoint(newmousepos);
+
                 BattleVal.status = STATUS.PLAYER_UNIT_SELECT;
                 break;
             //攻撃モード中ならば、それを解除し、ユニット選択に戻る
@@ -1098,6 +1442,14 @@ public class Operation : MonoBehaviour {
 
                 CharaAttack.Destroy_Attackabletile();
                 CharaStatusPrinter.SetUp_DrawStatus();
+                //マウスセルを戻す
+                mouse_x = BattleVal.selectX;
+                mouse_y = BattleVal.selectY;
+                Mapclass.DrawCharacter(SelectTile, mouse_x, mouse_y);
+                //カメラの移動
+                Mapclass.TranslateMapCoordToPosition(ref newmousepos, mouse_x, mouse_y);
+                CameraAngle.CameraPoint(newmousepos);
+
                 BattleVal.status = STATUS.PLAYER_UNIT_SELECT;
                 break;
             //スキルモード中ならば、それを解除し、ユニット選択（スキルメニュー表示）に戻る
@@ -1108,7 +1460,14 @@ public class Operation : MonoBehaviour {
                 CharaSkill.Destroy_Attackabletile();
                 CharaSkill.Destroy_Areatile();
                 CharaSkill.Setactive_SkillButtonList(true);
-                
+                //マウスセルを戻す
+                mouse_x = BattleVal.selectX;
+                mouse_y = BattleVal.selectY;
+                Mapclass.DrawCharacter(SelectTile, mouse_x, mouse_y);
+                //カメラの移動
+                Mapclass.TranslateMapCoordToPosition(ref newmousepos, mouse_x, mouse_y);
+                CameraAngle.CameraPoint(newmousepos);
+
                 BattleVal.status = STATUS.PLAYER_UNIT_SELECT;
                 break;
         }
@@ -1143,12 +1502,12 @@ public class Operation : MonoBehaviour {
             BattleVal.selectY = enemy.y;
 
             //移動可能性・攻撃可能性をリセット
-            enemy.movable = true;
-            enemy.atackable = true;
+            //enemy.movable = true;
+            //enemy.atackable = true;
 
             //2回行動してたどり着ける範囲で敵を見つける
             int[] attacktarget = EnemyAI.SearchTraget(enemy);
-            Debug.Log(string.Format("TARGET:{0},{1}", attacktarget[0], attacktarget[1]));
+            //Debug.Log(string.Format("TARGET:{0},{1}", attacktarget[0], attacktarget[1]));
 
             //ターゲットが居なければ
             if (attacktarget[0] == enemy.x && attacktarget[1] == enemy.y)  continue;
@@ -1313,7 +1672,9 @@ public class Operation : MonoBehaviour {
                         Skill useone = null;
                         foreach (Skill skill in enemy.skills)
                         {
-                            if (skill.use > 0 && skill.s_atk > 0) //回復は除く
+                            if (skill.use > 0 && skill.s_atk >= 0              //回復は除く
+                                && !(skill.donot_moveafter && !enemy.movable)
+                                && !(skill.is_mgc && !enemy.magicable)) 
                             {
                                 //威力が高くて、攻撃対象が存在するものがあるか
                                 if (useone == null || skill.s_atk > useone.s_atk)
@@ -1713,8 +2074,8 @@ public class Operation : MonoBehaviour {
         }
 
         //全キャラをループしたので、ターンチェンジ
-        Debug.Log("turn change");
-        BattleVal.status = STATUS.TURNCHANGE;
+        //Debug.Log("turn change");
+        BattleVal.status = STATUS.TURNEND;
         ecoroutine_runflag = false;
         yield break;
     }
@@ -1731,6 +2092,16 @@ public class Operation : MonoBehaviour {
             CharaStatusPrinter.Show_Enemy_Range(enemy_show_state);
             CharaStatusPrinter.HideStatus();
             CharaSkill.Destory_SkillButtonList();
+
+            //視点移動
+            mouse_x = resume_act.unit.x;
+            mouse_y = resume_act.unit.y;
+            Mapclass.DrawCharacter(SelectTile, mouse_x, mouse_y);
+            SelectTile.SetActive(true);
+            Vector3 temp = new Vector3();
+            Mapclass.TranslateMapCoordToPosition(ref temp, mouse_x, mouse_y);
+            CameraAngle.CameraPoint(temp);
+
         }
     }
 
@@ -1741,28 +2112,103 @@ public class Operation : MonoBehaviour {
         save_canvas = Instantiate<Canvas>(temp_object.GetComponent<Canvas>());
         savemanager = save_canvas.GetComponent<SaveManager>();
         savemanager.SaveWindowOpen();
+        EventSystem.current.SetSelectedGameObject(save_canvas.GetComponentsInChildren<Button>()[0].gameObject);
         BattleVal.status = STATUS.SAVE;
     }
 
+    int sellect_num = 0;
+    float quit_time = 0;
+    bool mouse_use = false;
     //セーブを行う関数
     public void Main_Save()
     {
+        //EventSystem.current.SetSelectedGameObject(null);
         if (EventSystem.current == null) return;
+        
         PointerEventData eventDataCurrent = new PointerEventData(EventSystem.current);
         eventDataCurrent.position = Input.mousePosition;
         List<RaycastResult> raycast = new List<RaycastResult>();
         EventSystem.current.RaycastAll(eventDataCurrent, raycast);
-        if (Input.GetMouseButtonDown(1))
+
+        if (quit_time == 0)
         {
+            quit_time = Time.time - 0.2f;
+            return;
+        }
+        if (Input.GetAxisRaw("Vertical") == 0 && Input.GetAxisRaw("Horizontal") == 0)
+        {
+            quit_time = Time.time - 0.2f;
+        }
+        if (Time.time - quit_time > 0.2f)
+        {
+            if (Input.GetAxisRaw("Vertical") > 0)
+            {
+                sellect_num = (sellect_num + (savemanager.save_load - 1)) % savemanager.save_load;
+                mouse_use = false;
+                quit_time = Time.time;
+            }
+            else if (Input.GetAxisRaw("Vertical") < 0)
+            {
+                sellect_num = (sellect_num + 1) % savemanager.save_load;
+                quit_time = Time.time;
+                mouse_use = false;
+            }
+            if (Input.GetAxisRaw("Horizontal") > 0)
+            {
+                quit_time = Time.time;
+                savemanager.NextPageButton();
+                return;
+            }
+            else if (Input.GetAxisRaw("Horizontal") < 0)
+            {
+                quit_time = Time.time;
+                savemanager.PrevPageButton();
+                return;
+            }
+        }
+        //Debug.Log(savemanager.now_page);
+        for (int i = 0; i < savemanager.save_load; i++)
+        {
+            savemanager.Show_Object[i].GetComponent<Image>().color = Color.white;
+        }
+        
+        bool check = false;
+        int temp_num = 0;
+        foreach (RaycastResult tmp_result in raycast)
+        {
+                for (int i = 0; i < savemanager.save_load; i++)
+                {
+                    if (!int.TryParse(savemanager.Show_Object[i].gameObject.name, out temp_num)) break;
+                    if (tmp_result.gameObject.transform.parent.gameObject.name == savemanager.Show_Object[i].gameObject.name)
+                    {
+                        check = true;
+                        EventSystem.current.SetSelectedGameObject(savemanager.Show_Object[i].gameObject);
+                        sellect_num = temp_num - 1;
+                        mouse_use = true;
+                        break;
+                    }
+                    else if (tmp_result.gameObject.name == savemanager.Show_Object[i].gameObject.name)
+                    {
+                        check = true;
+                        EventSystem.current.SetSelectedGameObject(savemanager.Show_Object[i].gameObject);
+                        sellect_num = temp_num - 1;
+                        mouse_use = true;
+                        break;
+                    }
+                }
+                if (check) break;
+        }
+        GameObject tmp = savemanager.Show_Object[sellect_num % savemanager.save_load].gameObject;
+        //savemanager.save_object[savemanager.now_page][sellect_num].GetComponent<Image>().color = Color.red;
+        if (Input.GetButtonDown("Cancel"))
+        {
+            quit_time = 0;
             BattleVal.status = STATUS.PLAYER_UNIT_SELECT;
             savemanager.save_BackGround.gameObject.SetActive(false);
-            for (int page = 0; page < savemanager.save_load_page; page++)
+            for (int j = 0; j < savemanager.save_load; j++)
             {
-                for (int j = 0; j < savemanager.save_load; j++)
-                {
-                    savemanager.save_object[page][j].gameObject.SetActive(true);
-                    Destroy(savemanager.save_object[page][j]);
-                }
+                savemanager.Show_Object[j].gameObject.SetActive(true);
+                Destroy(savemanager.Show_Object[j]);
             }
             savemanager.nextpagebutton.gameObject.SetActive(false);
             savemanager.prevpagebutton.gameObject.SetActive(false);
@@ -1771,70 +2217,62 @@ public class Operation : MonoBehaviour {
             Destroy(save_canvas.GetComponent<GraphicRaycaster>());
             Destroy(save_canvas.gameObject);
             Destroy(save_canvas);
+            ActRightClick();
         }
-        for (int page = 0; page < savemanager.save_load_page; page++)
+        if (Input.GetButtonDown("Submit"))
         {
-            for (int i = 0; i < savemanager.save_load; i++)
+            if (EventSystem.current.currentSelectedGameObject == savemanager.prevpagebutton.gameObject || EventSystem.current.currentSelectedGameObject == savemanager.nextpagebutton.gameObject) return;
+            quit_time = 0;
+            BattleSave SD = new BattleSave();
+            SD.Save();
+
+            //--------------------------------------------------------------------------------------
+            SD.current_message = string.Format("バトル「{5}」\n{0}/{1}/{2}/{3}:{4}", DateTime.Now.Year, DateTime.Now.Month, DateTime.Now.Day, DateTime.Now.Hour, DateTime.Now.Minute, SD.nameTitle);
+            //---------------------------------------------------------------------------------------
+
+            //Windows
+            //FileStream fs = new FileStream(Application.streamingAssetsPath + "/SaveData/" + tmp.gameObject.name + ".json", FileMode.Create, FileAccess.Write);
+            //Mac(Application.streamingAssetsPath is read only!)
+            FileStream fs = new FileStream(Application.persistentDataPath + "/SaveData/" + tmp.gameObject.name + ".json", FileMode.Create, FileAccess.Write);
+            StreamWriter sw = new StreamWriter(fs);
+            //**注意**--------------------------------------------------------------------------------------------------------------------------------------------------------------
+            Encryption_Config ec = Resources.Load<Encryption_Config>("Prefab/Encryption");
+            //sw.WriteLine(ec.EncryptionSystem(JsonUtility.ToJson(SD),false));
+            sw.WriteLine(ec.EncryptionSystem(JsonUtility.ToJson(SD), true));
+
+            //**--------------------------------------------------------------------------------------------------------------------------------------------------------------------
+            //sw.WriteLine(JsonUtility.ToJson(SD));
+            sw.Flush();
+            sw.Close();
+            fs.Close();
+            byte[] bytes = picture.EncodeToPNG();
+            //Windows
+            //File.WriteAllBytes(Application.streamingAssetsPath + "/SaveData/" + tmp.gameObject.name + ".png", bytes);
+            //Mac
+            File.WriteAllBytes(Application.persistentDataPath + "/SaveData/" + tmp.gameObject.name + ".png", bytes);
+            BattleVal.status = STATUS.PLAYER_UNIT_SELECT;
+            savemanager.save_BackGround.gameObject.SetActive(false);
+            savemanager.nextpagebutton.gameObject.SetActive(false);
+            savemanager.prevpagebutton.gameObject.SetActive(false);
+            savemanager.page_number.gameObject.SetActive(false);
+
+            for (int j = 0; j < savemanager.save_load; j++)
             {
-                savemanager.save_object[page][i].gameObject.SetActive(savemanager.now_page == page);
+                Destroy(savemanager.Show_Object[j]);
             }
+            Destroy(save_canvas.GetComponent<CanvasScaler>());
+            Destroy(save_canvas.GetComponent<GraphicRaycaster>());
+            Destroy(save_canvas.gameObject);
+            Destroy(save_canvas);
+            return;
         }
-        Debug.Log(savemanager.now_page);
-        for (int i = 0; i < savemanager.save_load; i++)
+        if (!check && mouse_use)
         {
-            savemanager.save_object[savemanager.now_page][i].GetComponent<Image>().color = Color.white;
+            EventSystem.current.SetSelectedGameObject(null);
         }
-        foreach (RaycastResult tmp in raycast)
+        else if (!mouse_use)
         {
-            for (int i = 0; i < savemanager.save_load; i++)
-            {
-                if (tmp.gameObject.name == savemanager.save_object[savemanager.now_page][i].gameObject.name)
-                {
-                    savemanager.save_object[savemanager.now_page][i].GetComponent<Image>().color = Color.red;
-                    if (Input.GetMouseButtonDown(0))
-                    {
-                        BattleSave SD = new BattleSave();
-                        SD.Save();
-                        
-                        //--------------------------------------------------------------------------------------
-                        SD.current_message = string.Format("バトル「{5}」\n{0}/{1}/{2}/{3}:{4}", DateTime.Now.Year, DateTime.Now.Month, DateTime.Now.Day, DateTime.Now.Hour, DateTime.Now.Minute, SD.nameTitle);
-                        //---------------------------------------------------------------------------------------
-
-                        FileStream fs = new FileStream(Application.streamingAssetsPath + "/SaveData/" + tmp.gameObject.name + ".json", FileMode.Create, FileAccess.Write);
-                        StreamWriter sw = new StreamWriter(fs);
-                        //**注意**--------------------------------------------------------------------------------------------------------------------------------------------------------------
-                        Encryption_Config ec = Resources.Load<Encryption_Config>("Prefab/Encryption");
-                        //sw.WriteLine(ec.EncryptionSystem(JsonUtility.ToJson(SD),false));
-                        sw.WriteLine(ec.EncryptionSystem(JsonUtility.ToJson(SD),true));
-
-                        //**--------------------------------------------------------------------------------------------------------------------------------------------------------------------
-                        //sw.WriteLine(JsonUtility.ToJson(SD));
-                        sw.Flush();
-                        sw.Close();
-                        fs.Close();
-                        byte[] bytes = picture.EncodeToPNG();
-                        File.WriteAllBytes(Application.streamingAssetsPath + "/SaveData/" + tmp.gameObject.name + ".png", bytes);
-                        BattleVal.status = STATUS.PLAYER_UNIT_SELECT;
-                        savemanager.save_BackGround.gameObject.SetActive(false);
-                        savemanager.nextpagebutton.gameObject.SetActive(false);
-                        savemanager.prevpagebutton.gameObject.SetActive(false);
-                        savemanager.page_number.gameObject.SetActive(false);
-
-                        for (int k = 0; k < savemanager.save_load_page; k++)
-                        {
-                            for (int j = 0; j < savemanager.save_load; j++)
-                            {
-                                Destroy(savemanager.save_object[k][j]);
-                            }
-                        }
-                        Destroy(save_canvas.GetComponent<CanvasScaler>());
-                        Destroy(save_canvas.GetComponent<GraphicRaycaster>());
-                        Destroy(save_canvas.gameObject);
-                        Destroy(save_canvas);
-                        return;
-                    }
-                }
-            }
+            EventSystem.current.SetSelectedGameObject(savemanager.Show_Object[(sellect_num % savemanager.save_load)].gameObject);
         }
     }
 
@@ -1845,24 +2283,26 @@ public class Operation : MonoBehaviour {
         save_canvas = Instantiate<Canvas>(temp_object.GetComponent<Canvas>());
         savemanager = save_canvas.GetComponent<SaveManager>();
         savemanager.LoadWindowOpen();
+        EventSystem.current.SetSelectedGameObject(save_canvas.GetComponentsInChildren<Button>()[0].gameObject);
         BattleVal.status = STATUS.LOAD;
     }
     //ロード関数
     public void Main_Load()
     {
-
+        //EventSystem.current.SetSelectedGameObject(null);
         if (EventSystem.current == null) return;
-        if (Input.GetMouseButtonDown(1))
+        PointerEventData eventDataCurrent = new PointerEventData(EventSystem.current);
+        eventDataCurrent.position = Input.mousePosition;
+        List<RaycastResult> raycast = new List<RaycastResult>();
+        EventSystem.current.RaycastAll(eventDataCurrent, raycast);
+        if (Input.GetButtonDown("Cancel"))
         {
+            quit_time = 0;
             BattleVal.status = STATUS.PLAYER_UNIT_SELECT;
             savemanager.save_BackGround.gameObject.SetActive(false);
-            for (int i = 0; i < savemanager.save_load_page; i++)
+            for (int j = 0; j < savemanager.save_load; j++)
             {
-                for (int j = 0; j < savemanager.save_load; j++)
-                {
-                    savemanager.save_object[i][j].gameObject.SetActive(true);
-                    Destroy(savemanager.save_object[i][j]);
-                }
+                Destroy(savemanager.Show_Object[j]);
             }
             savemanager.nextpagebutton.gameObject.SetActive(false);
             savemanager.prevpagebutton.gameObject.SetActive(false);
@@ -1871,90 +2311,140 @@ public class Operation : MonoBehaviour {
             Destroy(save_canvas.GetComponent<GraphicRaycaster>());
             Destroy(save_canvas.gameObject);
             Destroy(save_canvas);
+            ActRightClick();
         }
-        for (int page = 0; page < savemanager.save_load_page; page++)
+        for (int i = 0; i < savemanager.save_load; i++)
         {
-            for (int i = 0; i < savemanager.save_load; i++)
+            savemanager.Show_Object[i].GetComponent<Image>().color = Color.white;
+        }
+        if (quit_time == 0)
+        {
+            quit_time = Time.time - 0.2f;
+            return;
+        }
+        if (Input.GetAxisRaw("Vertical") == 0 && Input.GetAxisRaw("Horizontal") == 0)
+        {
+            quit_time = Time.time - 0.2f;
+        }
+        if (Time.time - quit_time > 0.2f)
+        {
+            if (Input.GetAxisRaw("Vertical") == 1)
             {
-                savemanager.save_object[page][i].gameObject.SetActive(page == savemanager.now_page);
+                sellect_num = (sellect_num + (savemanager.save_load - 1)) % savemanager.save_load;
+
+                quit_time = Time.time;
+                mouse_use = false;
+            }
+            else if (Input.GetAxisRaw("Vertical") == -1)
+            {
+                sellect_num = (sellect_num + 1) % savemanager.save_load;
+                quit_time = Time.time;
+                mouse_use = false;
+            }
+            if (Input.GetAxisRaw("Horizontal") > 0)
+            {
+                savemanager.NextPageButton();
+                quit_time = Time.time;
+                return;
+            }
+            else if (Input.GetAxisRaw("Horizontal") < 0)
+            {
+                savemanager.PrevPageButton();
+                quit_time = Time.time;
+                return;
             }
         }
-        PointerEventData eventDataCurrent = new PointerEventData(EventSystem.current);
-        eventDataCurrent.position = Input.mousePosition;
-        List<RaycastResult> raycast = new List<RaycastResult>();
-        EventSystem.current.RaycastAll(eventDataCurrent, raycast);
-        for (int j = 0; j < savemanager.save_load_page; j++)
-        {
-            for (int i = 0; i < savemanager.save_load; i++)
-            {
-                savemanager.save_object[j][i].GetComponent<Image>().color = Color.white;
-            }
-        }
+        int temp_num;
+        bool check = false;
         foreach (RaycastResult tmp in raycast)
         {
-            for (int page = 0; page < savemanager.save_load_page; page++)
+            for (int i = 0; i < savemanager.save_load; i++)
             {
-                for (int i = 0; i < savemanager.save_load; i++)
+                if (!int.TryParse(savemanager.Show_Object[i].gameObject.name, out temp_num)) break;
+                if (tmp.gameObject.transform.parent.gameObject.name == savemanager.Show_Object[i].gameObject.name)
                 {
-                    //if ((savemanager.sd[page][i]as NovelSave).reading_pos == -1) continue;
-                    if (tmp.gameObject.name == savemanager.save_object[page][i].gameObject.name)
-                    {
-                        savemanager.save_object[page][i].GetComponent<Image>().color = Color.red;
-                        if (Input.GetMouseButtonDown(0))
-                        {
-
-                            FileStream fs = new FileStream(Application.streamingAssetsPath + "/SaveData/" + savemanager.save_object[page][i].gameObject.name + ".json", FileMode.Open, FileAccess.Read);
-                            StreamReader sr = new StreamReader(fs);
-                            string test = sr.ReadToEnd();
-                            Debug.Log(test);
-                            //**注意**--------------------------------------------------------------------------------------------------------------------------------------------------------------
-                            Encryption_Config ec = Resources.Load<Encryption_Config>("Prefab/Encryption");
-                            //test = ec.DecryptionSystem(test,false);
-                            test = ec.DecryptionSystem(test,true); //serialize debug
-
-                            //**--------------------------------------------------------------------------------------------------------------------------------------------------------------------
-                            Debug.Log(test);
-                            BattleSave sd = JsonUtility.FromJson<BattleSave>(test);
-
-                            //一時ファイルを作成
-                            FileStream fs2 = new FileStream(Application.streamingAssetsPath + loadtemp, FileMode.Create, FileAccess.Write);
-                            StreamWriter sw = new StreamWriter(fs2);
-                            //一時ファイルにセーブデータを書き込み
-                            sw.WriteLine(test);
-                            //sw.WriteLine(JsonUtility.ToJson(SD));
-                            sw.Flush();
-                            sw.Close();
-                            fs2.Close();
-
-                            nextscenename = sd.nameScene;
-                            
-                            //sd.OnAfterDeserialize();
-                            sd.Load();
-                            sr.Close();
-                            fs.Close();
-                            BattleVal.status = STATUS.FADEOUT;
-                            savemanager.save_BackGround.gameObject.SetActive(false);
-                            savemanager.nextpagebutton.gameObject.SetActive(false);
-                            savemanager.prevpagebutton.gameObject.SetActive(false);
-                            savemanager.page_number.gameObject.SetActive(false);
-                            for (int k = 0; k < savemanager.save_load_page; k++)
-                            {
-                                for (int j = 0; j < savemanager.save_load; j++)
-                                {
-                                    Destroy(savemanager.save_object[k][j]);
-                                }
-                            }
-                            Destroy(save_canvas.GetComponent<CanvasScaler>());
-                            Destroy(save_canvas.GetComponent<GraphicRaycaster>());
-                            Destroy(save_canvas.gameObject);
-                            Destroy(save_canvas);
-                            return;
-                        }
-                    }
+                    check = true;
+                    EventSystem.current.SetSelectedGameObject(savemanager.Show_Object[i].gameObject);
+                    sellect_num = temp_num - 1;
+                    mouse_use = true;
+                    break;
+                }
+                else if (tmp.gameObject.name == savemanager.Show_Object[i].gameObject.name)
+                {
+                    check = true;
+                    EventSystem.current.SetSelectedGameObject(savemanager.Show_Object[i].gameObject);
+                    sellect_num = temp_num - 1;
+                    mouse_use = true;
+                    break;
                 }
             }
+            if (check) break;
         }
+        //Debug.Log(sellect_num);
+        //savemanager.save_object[savemanager.now_page][sellect_num].GetComponent<Image>().color = Color.red;
+        if (Input.GetButtonDown("Submit"))
+        {
+            if (EventSystem.current.currentSelectedGameObject == savemanager.prevpagebutton.gameObject || EventSystem.current.currentSelectedGameObject == savemanager.nextpagebutton.gameObject) return;
 
+            quit_time = 0;
+            //Windows
+            //FileStream fs = new FileStream(Application.streamingAssetsPath + "/SaveData/" + savemanager.Show_Object[sellect_num % savemanager.save_load].gameObject.name + ".json", FileMode.Open, FileAccess.Read);
+            //Mac(streamingAssetsPath is readonly!)
+            FileStream fs = new FileStream(Application.persistentDataPath + "/SaveData/" + savemanager.Show_Object[sellect_num % savemanager.save_load].gameObject.name + ".json", FileMode.Open, FileAccess.Read);
+            StreamReader sr = new StreamReader(fs);
+            string test = sr.ReadToEnd();
+            //Debug.Log(test);
+            //**注意**--------------------------------------------------------------------------------------------------------------------------------------------------------------
+            Encryption_Config ec = Resources.Load<Encryption_Config>("Prefab/Encryption");
+            //test = ec.DecryptionSystem(test,false);
+            test = ec.DecryptionSystem(test, true); //serialize debug
+
+            //**--------------------------------------------------------------------------------------------------------------------------------------------------------------------
+            //Debug.Log(test);
+            BattleSave sd = JsonUtility.FromJson<BattleSave>(test);
+
+            //一時ファイルを作成
+            //Windows
+            //FileStream fs2 = new FileStream(Application.streamingAssetsPath + loadtemp, FileMode.Create, FileAccess.Write);
+            //Mac
+            FileStream fs2 = new FileStream(Application.persistentDataPath + loadtemp, FileMode.Create, FileAccess.Write);
+            StreamWriter sw = new StreamWriter(fs2);
+            //一時ファイルにセーブデータを書き込み
+            sw.WriteLine(test);
+            //sw.WriteLine(JsonUtility.ToJson(SD));
+            sw.Flush();
+            sw.Close();
+            fs2.Close();
+
+            nextscenename = sd.nameScene;
+
+            //sd.OnAfterDeserialize();
+            sd.Load();
+            sr.Close();
+            fs.Close();
+            BattleVal.status = STATUS.FADEOUT;
+            savemanager.save_BackGround.gameObject.SetActive(false);
+            savemanager.nextpagebutton.gameObject.SetActive(false);
+            savemanager.prevpagebutton.gameObject.SetActive(false);
+            savemanager.page_number.gameObject.SetActive(false);
+            for (int j = 0; j < savemanager.save_load; j++)
+            {
+                Destroy(savemanager.Show_Object[j]);
+            }
+            Destroy(save_canvas.GetComponent<CanvasScaler>());
+            Destroy(save_canvas.GetComponent<GraphicRaycaster>());
+            Destroy(save_canvas.gameObject);
+            Destroy(save_canvas);
+            return;
+        }
+        if (!check && mouse_use)
+        {
+            EventSystem.current.SetSelectedGameObject(null);
+        }
+        else if (!mouse_use)
+        {
+            EventSystem.current.SetSelectedGameObject(savemanager.Show_Object[(sellect_num % savemanager.save_load)].gameObject);
+        }
     }
 
 
@@ -2041,6 +2531,7 @@ public class Operation : MonoBehaviour {
     public Text textGetExp;
     public Text textLevelup;
     public float timeShowExp;
+    private float exp_popy = 50; 
     public float timeShowLevelup;
     public AudioClip seGetExp;
     public AudioClip seLevelup;
@@ -2090,7 +2581,6 @@ public class Operation : MonoBehaviour {
                     unit.hp = unit.status.maxhp; //回復
 
                     //スキル獲得判定
-                    //TODO:演出
                     List<Skill> getskills = IsGetNewSkill(unit);
                     if(getskills.Count > 0)
                     {
@@ -2123,12 +2613,17 @@ public class Operation : MonoBehaviour {
         //経験値表示を消していく処理
         else if(exptimer >= 0 && exptimer < timeShowExp)
         {
-            foreach(Text exptext in listTextExpUI)
+            float accelfact = 1.0f;
+            //加速処理
+            if (Input.GetButton("Submit")) accelfact = 2.0f;
+            if (Input.GetButton("Cancel")) exptimer = timeShowExp;
+
+            foreach (Text exptext in listTextExpUI)
             {
-                exptext.color -= new Color(0, 0, 0, Time.deltaTime/timeShowExp);
-                exptext.transform.position += new Vector3(0, 1, 0);
+                exptext.color -= new Color(0, 0, 0, Time.deltaTime/timeShowExp * accelfact);
+                exptext.transform.position += new Vector3(0, exp_popy * Time.deltaTime / timeShowExp * accelfact , 0);
             }
-            exptimer += Time.deltaTime;
+            exptimer += Time.deltaTime * accelfact;
         }
         //経験値表示処理終了
         else if(exptimer >= timeShowExp)
@@ -2159,11 +2654,15 @@ public class Operation : MonoBehaviour {
         //レベルアップ表示を消していく処理
         else if(exptimer <= -2 && exptimer > -2 - timeShowLevelup)
         {
+            float accelfact = 1.0f;
+            //加速処理
+            if (Input.GetButton("Submit")) accelfact = 2.0f;
+            if (Input.GetButton("Cancel")) exptimer = -2 - timeShowLevelup;
             foreach (Text leveluptext in listTextLevelupUI)
             {
-                leveluptext.color -= new Color(0, 0, 0, Time.deltaTime / timeShowLevelup);
+                leveluptext.color -= new Color(0, 0, 0, Time.deltaTime / timeShowLevelup * accelfact);
             }
-            exptimer -= Time.deltaTime;
+            exptimer -= Time.deltaTime * accelfact;
         }
         //レベルアップ表示処理終了
         else if(exptimer < -2 - timeShowLevelup)
@@ -2207,5 +2706,65 @@ public class Operation : MonoBehaviour {
             }
         }
         return ans;
+    }
+
+    //ユニット送り機能
+    //ユニット選択モード時にNキー（Switch:Yボタン）
+    //行動可能の仲間ユニットが居る場合そのキャラを選択する
+    void UnitFeed()
+    {
+        if (BattleVal.status != STATUS.PLAYER_UNIT_SELECT) return;
+        if (BattleVal.sysmenuflag) return;
+        if (enemy_show_state != 0) return;
+
+        if (Input.GetButtonDown("UnitFeed"))
+        {
+            //送るユニットのリスト
+            List<Unitdata> feedunitlist = new List<Unitdata>();
+
+            foreach (Unitdata unit in BattleVal.unitlist)
+            {
+                if (unit.team == 0 && (unit.movable || unit.atackable))
+                {
+                    feedunitlist.Add(unit);
+                }
+            }
+
+            //
+            if (feedunitlist.Count == 0)
+            {
+                seAudioSource.PlayOneShot(seButtonCancel);
+                return;
+            }
+
+            int id = 0;
+            //すでに未行動の味方ユニットを選択している
+            if (BattleVal.id2index.ContainsKey(string.Format("{0},{1}", BattleVal.selectX, BattleVal.selectY)))
+            {
+                Unitdata tmpunit = BattleVal.id2index[string.Format("{0},{1}", BattleVal.selectX, BattleVal.selectY)];
+                if (feedunitlist.Contains(tmpunit))
+                {
+                    id = feedunitlist.IndexOf(tmpunit); //tmp
+                    //次のユニットに
+                    if (id == feedunitlist.Count - 1) id = 0;
+                    else id = id + 1;
+
+                    
+                }
+            }
+
+            CharaStatusPrinter.HideStatus();
+            CharaSkill.Destory_SkillButtonList();
+
+            BattleVal.selectedUnit = feedunitlist[id];
+            BattleVal.selectX = mouse_x = feedunitlist[id].x;
+            BattleVal.selectY = mouse_y = feedunitlist[id].y;
+            Mapclass.DrawCharacter(SelectTile, mouse_x, mouse_y);
+            seAudioSource.PlayOneShot(seButtonOK);
+            Vector3 mousepos = new Vector3();
+            Mapclass.TranslateMapCoordToPosition(ref mousepos, mouse_x, mouse_y);
+            CameraAngle.CameraPoint(mousepos);
+            CharaStatusPrinter.SetUp_DrawStatus();
+        }
     }
 }

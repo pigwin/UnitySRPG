@@ -1,0 +1,2 @@
+SDF.asset filter=lfs diff=lfs merge=lfs -text
+Assets/UI/Font/migmix-1p-regular filter=lfs diff=lfs merge=lfs -text

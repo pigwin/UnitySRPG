@@ -2,6 +2,8 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
+using System;
 /************************************************/
 /*キャラクターのスキル利用時の処理を行うクラス  */
 /************************************************/
@@ -18,6 +20,12 @@ public class CharaSkill : MonoBehaviour {
     //回復エリアを表すタイル
     public static GameObject healareatile;
     public GameObject healareatile_inspector;
+    //回復可能範囲を表すタイル
+    public static GameObject conditiontile;
+    public GameObject conditiontile_inspector;
+    //回復エリアを表すタイル
+    public static GameObject conditionareatile;
+    public GameObject conditionareatile_inspector;
 
     //スキル名表示
     public GameObject skillnamePanel;
@@ -42,7 +50,10 @@ public class CharaSkill : MonoBehaviour {
     //スキルボタンリストを表示（ボタン作成）
     public void ShowSkill()
     {
-        if (skillbuttonlist.Count > 0) return;
+        if (skillbuttonlist.Count > 0)
+        {
+            Destory_SkillButtonList();
+        }
         const int BUTTONX0 = 130;
         const int BUTTONY0 = -150;
         const int BUTTONW0 = 200;
@@ -65,9 +76,19 @@ public class CharaSkill : MonoBehaviour {
                = string.Format("{0}",skill.skillname);
             tmp.transform.Find("CountText").GetComponent<Text>().text
                 = string.Format("{0}回／{1}回", skill.use, skill.maxuse);
-            if (skill.use == 0) tmp.interactable = false;
+            //使用回数切れや、使用条件を満たしていない場合
+            if (skill.use == 0 
+                || (skill.donot_moveafter && !BattleVal.selectedUnit.movable)
+                || (skill.is_mgc && !BattleVal.selectedUnit.magicable))
+                tmp.interactable = false;
             tmp.onClick.AddListener(() => SkillHundle(skill));
             skillbuttonlist.Add(tmp);
+            //ハイライト処理
+            if(skillbuttonlist.Count == 1)
+            {
+                tmp.Select();
+            }
+
             i++;
         }
     }
@@ -75,6 +96,7 @@ public class CharaSkill : MonoBehaviour {
     //スキルボタンリストを消去する関数
     public static void Destory_SkillButtonList()
     {
+        EventSystem.current.SetSelectedGameObject(null);
         foreach(Button tmp in skillbuttonlist)
         {
             Destroy(tmp.gameObject);
@@ -84,9 +106,25 @@ public class CharaSkill : MonoBehaviour {
     //スキルボタンリストを非表示・表示する関数
     public static void Setactive_SkillButtonList(bool flag)
     {
+        bool check = false;
         foreach (Button tmp in skillbuttonlist)
         {
             tmp.gameObject.SetActive(flag);
+        }
+        try
+        {
+            GameObject obj = EventSystem.current.currentSelectedGameObject.gameObject;
+            foreach (Button tmp in skillbuttonlist)
+            {
+                if (tmp.name == obj.name) check = true;
+            }
+        }catch(NullReferenceException ex)
+        {
+            if(flag)skillbuttonlist[0].Select();
+        }
+        if (!check)
+        {
+            if(flag)skillbuttonlist[0].Select();
         }
     }
 
@@ -110,6 +148,25 @@ public class CharaSkill : MonoBehaviour {
         //メニューボタン非表示に
         BattleVal.menuflag = false;
         Operation.setSE(seButtonOK);
+
+        //キーパッドモードの時、即時で選択キャラのマスの判定を行う
+        if (!BattleVal.is_mouseinput && Is_OverAttackable(BattleVal.selectX, BattleVal.selectY))
+        {
+            CharaSkill.Set_Attackarea(BattleVal.selectX, BattleVal.selectY);
+            CharaSkill.Show_Attackarea();
+
+            //ユニットがマウス位置にいる
+            if (CharaSkill.Is_attackableTile(BattleVal.selectX, BattleVal.selectY))
+            {
+                int predamage = CharaSkill.Calc_Damage(BattleVal.selectedUnit,
+                        BattleVal.id2index[string.Format("{0},{1}", BattleVal.selectX, BattleVal.selectY)]);
+                CharaStatusPrinter.Setup_DrawTargetStatus(BattleVal.selectX, BattleVal.selectY, predamage);
+            }
+            else
+                CharaStatusPrinter.HideTargetStatus();
+
+            Operation.mouse_click = true;
+        }
     }
 
     //attackablelistをセットするだけ
@@ -134,9 +191,13 @@ public class CharaSkill : MonoBehaviour {
             {
                 tmptile = Instantiate(healabletile);
             }
-            else
+            else if(selectedskill.s_atk > 0)
             {
                 tmptile = Instantiate(attackabletile);
+            }
+            else
+            {
+                tmptile = Instantiate(conditiontile);
             }
             tilelist.Add(tmptile);
             Mapclass.DrawCharacter(tilelist[tilelist.Count - 1], mappos[0], mappos[1]);
@@ -183,9 +244,13 @@ public class CharaSkill : MonoBehaviour {
             {
                 tmptile = Instantiate(healareatile);
             }
-            else
+            else if (selectedskill.s_atk > 0)
             {
                 tmptile = Instantiate(attackareatile);
+            }
+            else
+            {
+                tmptile = Instantiate(conditionareatile);
             }
             areatilelist.Add(tmptile);
             Mapclass.DrawCharacter(areatilelist[areatilelist.Count - 1], mappos[0], mappos[1]);
@@ -225,7 +290,8 @@ public class CharaSkill : MonoBehaviour {
                 Unitdata temp = BattleVal.id2index[string.Format("{0},{1}", mappos[0], mappos[1])];
                 //攻撃対象・回復対象か
                 if ((temp.team != BattleVal.selectedUnit.team && selectedskill.s_atk > 0)
-                    || (temp.team == BattleVal.selectedUnit.team && selectedskill.s_atk < 0))
+                    || (temp.team == BattleVal.selectedUnit.team && selectedskill.s_atk < 0)
+                    || selectedskill.s_atk == 0)
                 {
                     //攻撃先を登録
                     Set_attackedpos(mappos[0], mappos[1]);
@@ -252,7 +318,8 @@ public class CharaSkill : MonoBehaviour {
             Unitdata temp = BattleVal.id2index[string.Format("{0},{1}", mapx, mapy)];
             //攻撃対象・回復対象か
             if ((temp.team != BattleVal.selectedUnit.team && selectedskill.s_atk > 0)
-                    || (temp.team == BattleVal.selectedUnit.team && selectedskill.s_atk < 0))
+                    || (temp.team == BattleVal.selectedUnit.team && selectedskill.s_atk < 0)
+                    || selectedskill.s_atk == 0)
             {
                 skillpos = new int[] {mapx, mapy};
                 return true;
@@ -284,7 +351,8 @@ public class CharaSkill : MonoBehaviour {
                 Unitdata temp = BattleVal.id2index[string.Format("{0},{1}", mappos[0], mappos[1])];
                 //攻撃対象・回復対象か
                 if ((temp.team != BattleVal.selectedUnit.team && selectedskill.s_atk > 0)
-                    || (temp.team == BattleVal.selectedUnit.team && selectedskill.s_atk < 0))
+                    || (temp.team == BattleVal.selectedUnit.team && selectedskill.s_atk < 0)
+                    || selectedskill.s_atk == 0)
                 {
                     ans.Add(temp);
                 }
@@ -323,6 +391,11 @@ public class CharaSkill : MonoBehaviour {
             //負の場合等の例外処理
             if (damage < 0) damage = 1;
         }
+        else if(selectedskill.s_atk == 0)
+        {
+            //ダメージなしの状態異常付加系
+            return damage;
+        }
         else
         {
             //回復
@@ -345,8 +418,11 @@ public class CharaSkill : MonoBehaviour {
     public Text damagetextprefab;
     //実際に表示する数値
     public static List<List<Text>> damagenum = new List<List<Text>>();
+    private List<GameObject> gobjPopupConditions = new List<GameObject>();
+    
     //バトル演出時間
     private float battle_time = 1.0f;
+    private float damage_popy = 50f;
     private static float nowtime;
     public Canvas canvas;
 
@@ -357,6 +433,8 @@ public class CharaSkill : MonoBehaviour {
         attackareatile = attackareatile_inspector;
         healabletile = healabletile_inspector;
         healareatile = healareatile_inspector;
+        conditiontile = conditiontile_inspector;
+        conditionareatile = conditionareatile_inspector;
         skillnamePanel.SetActive(false);
     }
 
@@ -388,64 +466,10 @@ public class CharaSkill : MonoBehaviour {
                     Mapclass.TranslateMapCoordToPosition(ref r0, BattleVal.selectX, BattleVal.selectY);
                     Mapclass.TranslateMapCoordToPosition(ref rSkill, skillpos[0], skillpos[1]);
                     rSkill.y = r0.y;
-                    BattleVal.selectedUnit.gobj.transform.LookAt(rSkill);
+                    if(r0 != rSkill)
+                        BattleVal.selectedUnit.gobj.transform.LookAt(rSkill);
 
-                    /*
-                    //攻撃対象
-                    foreach (int[] attackedpos in attackedposlist)
-                    {
-                        Vector3 r1 = new Vector3(); //攻撃先
-                        Mapclass.TranslateMapCoordToPosition(ref r1, attackedpos[0], attackedpos[1]);
-                        Unitdata temp = BattleVal.id2index[string.Format("{0},{1}", attackedpos[0], attackedpos[1])];
-                        damage = Calc_Damage(BattleVal.selectedUnit, temp);
-
-                        temp.hp -= damage; //ダメージ処理
-
-                        string damagetext = string.Format("{0}", (int)Mathf.Abs(damage));
-                        int count = 1;
-                        //ダメージテキストの中心座標
-                        Vector3 damage_center = Camera.main.WorldToScreenPoint(r1);
-
-                        //テキストの登録
-                        List<Text> damagenumtmp = new List<Text>();
-                        foreach (char a in damagetext)
-                        {
-                            int num = (int)char.GetNumericValue(a); //数を取得
-
-                            damagenumtmp.Add(Instantiate(damagetextprefab, r1, Quaternion.identity));
-                            damagenumtmp[count - 1].text = a.ToString();
-                            //サイズ取得
-                            damagenumtmp[count - 1].rectTransform.sizeDelta = 
-                                new Vector2(damagenumtmp[count - 1].preferredWidth, damagenumtmp[count - 1].preferredHeight);
-                            damagenumtmp[count - 1].rectTransform.sizeDelta = 
-                                new Vector2(damagenumtmp[count - 1].preferredWidth, damagenumtmp[count - 1].preferredHeight);
-                            damagenumtmp[count - 1].transform.SetParent(canvas.transform, false);
-                            damagenumtmp[count - 1].transform.localPosition = damage_center - new Vector3(canvas.GetComponent<RectTransform>().sizeDelta.x / 2, canvas.GetComponent<RectTransform>().sizeDelta.y / 2, 0);
-
-                            //1桁当たりの文字ブロック
-                            Vector3 numsize = damagenumtmp[count - 1].GetComponent<RectTransform>().sizeDelta * damagenumtmp[count - 1].GetComponent<RectTransform>().localScale;
-                            numsize.y = 0;
-                            numsize.z = 0;
-
-                            damagenumtmp[count - 1].transform.localPosition += (count - 1) * numsize;
-                            damagenumtmp[count - 1].transform.localPosition += new Vector3(0, 30, 0);
-                            damagenumtmp[count - 1].color = new Vector4(1, 0, 0, 1);
-                            if (damage < 0) damagenumtmp[count - 1].color = new Vector4(0.7f,1,0.7f,1);
-                            damagenumtmp[count - 1].gameObject.SetActive(false);
-                            count++;
-
-                        }
-                        damagenum.Add(damagenumtmp);
-
-                        //アニメーション設定
-                        attackedAnimator.Add(temp.gobj.GetComponent<Animator>());
-                        if(damage > 0)
-                            attackedanimstate.Add(hitAnimName);    //共通モーションだと思うが、一部キャラで回復・ダメージが混ざる将来性も加味する
-                        else
-                            attackedanimstate.Add(healAnimName); //暫定　Healモーションも作る
-                        attackedCharaAnimation.Add(temp.gobj.GetComponent<CharaAnimation>());
-                    }
-                    */
+                    
                     nowtime = -1; //initialize
 
                     //スキルの消費
@@ -453,24 +477,29 @@ public class CharaSkill : MonoBehaviour {
                     //行動スタックのクリア（1手戻し不可能に）
                     BattleVal.actions.Clear();
 
-                    //カットイン演出の場合
-                    if(selectedskill.is_cutscene)
-                    {
-                        gobjCutin = Instantiate(selectedskill.prefab_cutin);
-                        bstate = BATTLE_STATUS.CUTIN;
-
-                    }
+                    //スキップ
+                    if (Input.GetButton("Cancel"))
+                        bstate = BATTLE_STATUS.BATTLE;
                     else
                     {
-                        //通常スキルの場合
-                        //スキル使用モーション再生
-                        BattleVal.selectedUnit.gobj.GetComponent<Animator>().Play(selectedskill.animname);
-                        //state update
-                        bstate = BATTLE_STATUS.EFFECT;
-                        skilltext.text = selectedskill.skillname;
-                        skillnamePanel.SetActive(true);
+                        //カットイン演出の場合
+                        if (selectedskill.is_cutscene)
+                        {
+                            gobjCutin = Instantiate(selectedskill.prefab_cutin);
+                            bstate = BATTLE_STATUS.CUTIN;
+
+                        }
+                        else
+                        {
+                            //通常スキルの場合
+                            //スキル使用モーション再生
+                            BattleVal.selectedUnit.gobj.GetComponent<Animator>().Play(selectedskill.animname);
+                            //state update
+                            bstate = BATTLE_STATUS.EFFECT;
+                            skilltext.text = selectedskill.skillname;
+                            skillnamePanel.SetActive(true);
+                        }
                     }
-                    
 
                     break;
                 case BATTLE_STATUS.CUTIN:
@@ -524,56 +553,111 @@ public class CharaSkill : MonoBehaviour {
                                 Mapclass.TranslateMapCoordToPosition(ref r1, attackedpos[0], attackedpos[1]);
                                 Unitdata temp = BattleVal.id2index[string.Format("{0},{1}", attackedpos[0], attackedpos[1])];
                                 damage = Calc_Damage(BattleVal.selectedUnit, temp);
-
+                                
                                 temp.hp -= damage; //ダメージ処理
 
-                                string damagetext = string.Format("{0}", (int)Mathf.Abs(damage));
-                                int count = 1;
                                 //ダメージテキストの中心座標
                                 Vector3 damage_center = Camera.main.WorldToScreenPoint(r1);
 
-                                //テキストの登録
-                                List<Text> damagenumtmp = new List<Text>();
-                                foreach (char a in damagetext)
+                                if (damage != 0)
                                 {
-                                    int num = (int)char.GetNumericValue(a); //数を取得
+                                    int count = 1;
+                                    string damagetext = string.Format("{0}", (int)Mathf.Abs(damage));
 
-                                    damagenumtmp.Add(Instantiate(damagetextprefab, r1, Quaternion.identity));
-                                    damagenumtmp[count - 1].text = a.ToString();
-                                    //サイズ取得
-                                    damagenumtmp[count - 1].rectTransform.sizeDelta =
-                                        new Vector2(damagenumtmp[count - 1].preferredWidth, damagenumtmp[count - 1].preferredHeight);
-                                    damagenumtmp[count - 1].rectTransform.sizeDelta =
-                                        new Vector2(damagenumtmp[count - 1].preferredWidth, damagenumtmp[count - 1].preferredHeight);
-                                    damagenumtmp[count - 1].transform.SetParent(canvas.transform, false);
-                                    damagenumtmp[count - 1].transform.localPosition = damage_center - new Vector3(canvas.GetComponent<RectTransform>().sizeDelta.x / 2, canvas.GetComponent<RectTransform>().sizeDelta.y / 2, 0);
+                                    //テキストの登録
+                                    List<Text> damagenumtmp = new List<Text>();
+                                    foreach (char a in damagetext)
+                                    {
+                                        int num = (int)char.GetNumericValue(a); //数を取得
 
-                                    //1桁当たりの文字ブロック
-                                    Vector3 numsize = damagenumtmp[count - 1].GetComponent<RectTransform>().sizeDelta * damagenumtmp[count - 1].GetComponent<RectTransform>().localScale;
-                                    numsize.y = 0;
-                                    numsize.z = 0;
+                                        damagenumtmp.Add(Instantiate(damagetextprefab, r1, Quaternion.identity));
+                                        damagenumtmp[count - 1].text = a.ToString();
+                                        //サイズ取得
+                                        damagenumtmp[count - 1].rectTransform.sizeDelta =
+                                            new Vector2(damagenumtmp[count - 1].preferredWidth, damagenumtmp[count - 1].preferredHeight);
+                                        damagenumtmp[count - 1].rectTransform.sizeDelta =
+                                            new Vector2(damagenumtmp[count - 1].preferredWidth, damagenumtmp[count - 1].preferredHeight);
+                                        damagenumtmp[count - 1].transform.SetParent(canvas.transform, false);
+                                        damagenumtmp[count - 1].transform.localPosition = damage_center - new Vector3(canvas.GetComponent<RectTransform>().sizeDelta.x / 2, canvas.GetComponent<RectTransform>().sizeDelta.y / 2, 0);
 
-                                    damagenumtmp[count - 1].transform.localPosition += (count - 1) * numsize;
-                                    damagenumtmp[count - 1].transform.localPosition += new Vector3(0, 30, 0);
-                                    damagenumtmp[count - 1].color = new Vector4(1, 0, 0, 1);
-                                    if (damage < 0) damagenumtmp[count - 1].color = new Vector4(0.7f, 1, 0.7f, 1);
-                                    damagenumtmp[count - 1].gameObject.SetActive(false);
-                                    count++;
+                                        //1桁当たりの文字ブロック
+                                        Vector3 numsize = damagenumtmp[count - 1].GetComponent<RectTransform>().sizeDelta * damagenumtmp[count - 1].GetComponent<RectTransform>().localScale;
+                                        numsize.y = 0;
+                                        numsize.z = 0;
 
+                                        damagenumtmp[count - 1].transform.localPosition += (count - 1) * numsize;
+                                        damagenumtmp[count - 1].transform.localPosition += new Vector3(0, 30, 0);
+                                        damagenumtmp[count - 1].color = new Vector4(1, 0, 0, 1);
+                                        if (damage < 0) damagenumtmp[count - 1].color = new Vector4(0.7f, 1, 0.7f, 1);
+                                        damagenumtmp[count - 1].gameObject.SetActive(false);
+                                        count++;
+
+                                    }
+                                    damagenum.Add(damagenumtmp);
+
+                                    //アニメーション設定
+                                    attackedAnimator.Add(temp.gobj.GetComponent<Animator>());
+                                    if (damage > 0)
+                                        attackedanimstate.Add(hitAnimName);
+                                    else if (damage < 0)
+                                        attackedanimstate.Add(healAnimName);
+                                    attackedCharaAnimation.Add(temp.gobj.GetComponent<CharaAnimation>());
                                 }
-                                damagenum.Add(damagenumtmp);
 
-                                //アニメーション設定
-                                attackedAnimator.Add(temp.gobj.GetComponent<Animator>());
-                                if (damage > 0)
-                                    attackedanimstate.Add(hitAnimName);    //共通モーションだと思うが、一部キャラで回復・ダメージが混ざる将来性も加味する
-                                else
-                                    attackedanimstate.Add(healAnimName); //暫定　Healモーションも作る
-                                attackedCharaAnimation.Add(temp.gobj.GetComponent<CharaAnimation>());
+                                //状態異常判定
+                                if (selectedskill.condition != null)
+                                {
+                                    
+                                    int removekey = -1;
+
+                                    //状態異常判定
+                                    if (selectedskill.condition.is_Effective(temp, ref removekey)
+                                        && UnityEngine.Random.Range(0.0f, 1.0f) <= selectedskill.condition.percent)
+                                    {
+                                        Condition condition = ScriptableObject.Instantiate<Condition>(selectedskill.condition);
+                                        condition.SetCondition(temp);
+                                        temp.status.conditions.Add(condition);
+                                        //移動不可系は直ちに適用する
+                                        if (condition.forbiddenMove) temp.movable = false;
+                                        if (condition.forbiddenAttack) temp.atackable = false;
+
+                                        //条件の状態異常を解除
+                                        if(removekey != -1)
+                                        {
+                                            Destroy(temp.status.conditions[removekey].gobjEffect);
+                                            temp.status.conditions.RemoveAt(removekey);
+                                        }
+
+                                        GameObject tempPopup = Instantiate(condition.prefabPopup, r1, Quaternion.identity);
+                                        tempPopup.AddComponent<CanvasGroup>();
+                                        tempPopup.GetComponent<CanvasGroup>().alpha = 1;
+                                        tempPopup.transform.SetParent(canvas.transform, false);
+                                        tempPopup.transform.localPosition = damage_center
+                                            - new Vector3(canvas.GetComponent<RectTransform>().sizeDelta.x / 2, canvas.GetComponent<RectTransform>().sizeDelta.y / 2, 0)
+                                            + new Vector3(0, 65, 0);
+                                        tempPopup.SetActive(false);
+                                        gobjPopupConditions.Add(tempPopup);
+                                        Operation.setSE(condition.se);
+                                    }
+                                }
+
+                                //状態異常回復判定
+                                //強化解除判定
+                                for (int i = temp.status.conditions.Count - 1; i >= 0; i--)
+                                {
+                                    if ((temp.status.conditions[i].isbad && selectedskill.is_cureBadStatus)
+                                        || selectedskill.list_cureconditions.Contains(temp.status.conditions[i].condname)
+                                        ||(selectedskill.is_disarm && !temp.status.conditions[i].isbad && !temp.status.conditions[i].isresistdisarm)
+                                        || !selectedskill.is_mgc && temp.status.conditions[i].is_curebyattack && (selectedskill.condition.condname != temp.status.conditions[i].condname || temp.status.conditions[i].nowstate.nowturn != temp.status.conditions[i].contiturn))
+                                    {
+                                        Destroy(temp.status.conditions[i].gobjEffect);
+                                        temp.status.conditions.RemoveAt(i);
+                                    }
+                                }
+
                             }
                             for (int i=0; i<attackedAnimator.Count; i++)
                             {
-                                //Count不一致するかも？
                                 attackedAnimator[i].Play(attackedanimstate[i]);
                                 if(attackedanimstate[i] == hitAnimName)
                                 {
@@ -594,6 +678,10 @@ public class CharaSkill : MonoBehaviour {
                                 }
                                 //CameraAngle.CameraPoint(BattleVal.selectedUnit.gobj.transform.position);
                             }
+                            foreach (GameObject gobjCondition in gobjPopupConditions)
+                            {
+                                gobjCondition.SetActive(true);
+                            }
                             nowtime = 0;
                         }
                         else if (nowtime >= battle_time - Time.deltaTime)
@@ -609,12 +697,17 @@ public class CharaSkill : MonoBehaviour {
                                     Destroy(a.gameObject);
                                 }
                             }
+                            foreach (GameObject gobjCondition in gobjPopupConditions)
+                            {
+                                Destroy(gobjCondition);
+                            }
                             //戦闘用のダメージ表示などの判定が終了した後に、カメラの位置の移動
                             CameraAngle.CameraPoint(BattleVal.selectedUnit.gobj.transform.position);
                             //アニメーション関連の初期化
                             attackedAnimator.Clear();
                             attackedanimstate.Clear();
                             attackedCharaAnimation.Clear();
+                            gobjPopupConditions.Clear();
                             damagenum.Clear();
                             skillnamePanel.SetActive(false);
                             //攻撃可能フラグをオフに
@@ -623,17 +716,26 @@ public class CharaSkill : MonoBehaviour {
                         }
                         else
                         {
+                            float accelfact = 1.0f;
+                            //加速処理
+                            if (Input.GetButton("Submit")) accelfact = 2.0f;
+                            if (Input.GetButton("Cancel")) nowtime = battle_time;
                             //ダメージ数値のテキストを消す処理
                             //damagetext.color -= new Color(0,0,0,Time.deltaTime);
                             foreach (List<Text> damagenumtmp in damagenum)
                             {
                                 foreach (Text a in damagenumtmp)
                                 {
-                                    a.color -= new Color(0, 0, 0, Time.deltaTime);
-                                    a.transform.position += new Vector3(0, 1, 0);
+                                    a.color -= new Color(0, 0, 0, Time.deltaTime * accelfact);
+                                    a.transform.position += new Vector3(0, damage_popy * Time.deltaTime * accelfact, 0);
                                 }
                             }
-                            nowtime += Time.deltaTime;
+                            foreach (GameObject gobjCondition in gobjPopupConditions)
+                            {
+                                gobjCondition.GetComponent<CanvasGroup>().alpha -= Time.deltaTime * accelfact;
+                                gobjCondition.transform.position += new Vector3(0, damage_popy * Time.deltaTime * accelfact, 0);
+                            }
+                            nowtime += Time.deltaTime * accelfact;
 
                         }
                     }

@@ -21,12 +21,14 @@ public class StageSelectMenuAlpha : MonoBehaviour
 
     public void FadeIn()
     {
+        canvas.gameObject.SetActive(true);
         canvas.alpha = 0;
         canvas.interactable = true;
         state = STATE.FADEIN;
     }
     public void FadeOut()
     {
+        canvas.gameObject.SetActive(false);
         canvas.alpha = 1;
         canvas.interactable = false;
         canvas.blocksRaycasts = false;
@@ -53,6 +55,10 @@ public class StageSelectMenuAlpha : MonoBehaviour
                     state = STATE.NORMAL;
                 }
                 break;
+        }
+        if(canvas.alpha == 0.0f)
+        {
+            canvas.gameObject.SetActive(false);
         }
     }
 }

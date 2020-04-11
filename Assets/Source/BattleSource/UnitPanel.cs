@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 /*******************************************************************/
 /*ユニット出撃用のパネルの処理                                     */
 /*******************************************************************/
@@ -88,6 +89,40 @@ public class UnitPanel : MonoBehaviour
         unitcheckflag = is_unitcheck;
     }
 
+    private void Start()
+    {
+        //UnitPanelのキーパッド時の処理を追加
+        EventTrigger.Entry entry = new EventTrigger.Entry();
+        entry.eventID = EventTriggerType.Select;
+        entry.callback.AddListener((data) => OnSelectUnitPanel());
+
+        buttonUnitPanel.GetComponent<EventTrigger>().triggers.Add(entry);
+    }
+
+    public void OnSelectUnitPanel()
+    {
+        //キーパッド時のみ処理
+        if (BattleVal.is_mouseinput) return;
+
+        //ユニットチェック時
+        if (unitcheckflag)
+        {
+            UnitCheck.unitNowSelected = unit;
+            UnitCheck.is_unitchange = true;
+            return;
+        }
+
+        //バトルモード時
+        Operation.setSE(seOk);
+        BattleVal.selectedUnit = unit;
+        CharaStatusPrinter.Show_Enemy_Range(1);
+        if (sortiestate == SortieState.SORTIE || sortiestate == SortieState.FORCE)
+        {
+            //カメラの移動
+            CameraAngle.CameraPoint(BattleVal.selectedUnit.gobj.transform.position);
+        }
+    }
+
     private void Update()
     {
         switch(sortiestate)
@@ -109,6 +144,7 @@ public class UnitPanel : MonoBehaviour
                 buttonIsSortie.interactable = false;
                 break;
         }
+
     }
 
     //UnitPanelクリック時に詳細表示する
@@ -117,19 +153,32 @@ public class UnitPanel : MonoBehaviour
         //ユニット確認の場合（システムメニューなど）
         if (unitcheckflag)
         {
-            UnitCheck.unitNowSelected = unit;
-            UnitCheck.is_unitchange = true;
+            if(BattleVal.is_mouseinput)
+            {
+                UnitCheck.unitNowSelected = unit;
+                UnitCheck.is_unitchange = true;
+            }
+            
         }
         else //戦闘パートの場合
         {
-            Operation.setSE(seOk);
-            BattleVal.selectedUnit = unit;
-            CharaStatusPrinter.Show_Enemy_Range(1);
-            if (sortiestate == SortieState.SORTIE || sortiestate == SortieState.FORCE)
+            //マウスモード時
+            if (BattleVal.is_mouseinput)
             {
-                //カメラの移動
-                CameraAngle.CameraPoint(BattleVal.selectedUnit.gobj.transform.position);
+                Operation.setSE(seOk);
+                BattleVal.selectedUnit = unit;
+                CharaStatusPrinter.Show_Enemy_Range(1);
+                if (sortiestate == SortieState.SORTIE || sortiestate == SortieState.FORCE)
+                {
+                    //カメラの移動
+                    CameraAngle.CameraPoint(BattleVal.selectedUnit.gobj.transform.position);
+                }
             }
+            else
+            {
+                OnClickSortieButton();
+            }
+            
         }
         
     }
@@ -189,6 +238,9 @@ public class UnitPanel : MonoBehaviour
                                                             0.01f,
                                                             unittile.transform.localScale.z / unittile.transform.lossyScale.z);
                 Mapclass.DrawCharacter(unittile, unit.x, unit.y);
+
+                //カメラの移動
+                CameraAngle.CameraPoint(unit.gobj.transform.position);
 
                 break;
             }

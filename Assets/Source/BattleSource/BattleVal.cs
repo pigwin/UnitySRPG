@@ -9,6 +9,7 @@ public enum STATUS
     DRAW_STAGE,
     DRAW_TITLE,
     SETUP,
+    TURNEND,
     TURNCHANGE,
     TURNCHANGE_SHOW,
     PLAYER_UNIT_SELECT,
@@ -123,7 +124,12 @@ public class BattleVal{
 
     //セーブデータ用ステージタイトル名
     public static string title_name;
+    public static string str_victoryorder;
+    public static string str_defeatorder;
 
     //GameOver割込み用フラグ
     public static bool is_gameover = false;
+
+    //InputModeフラグ
+    public static bool is_mouseinput = true;
 }

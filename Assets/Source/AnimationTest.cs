@@ -21,6 +21,6 @@ public class AnimationTest : MonoBehaviour
         {
             GetComponent<Animator>().SetBool("Walk", false);
         }
-        Debug.Log(GetComponent<Animator>().GetBool("Walk"));
+        //Debug.Log(GetComponent<Animator>().GetBool("Walk"));
     }
 }

@@ -197,13 +197,15 @@ public class Light_Novel_Scripter : MonoBehaviour
         back_log.text = "";
         anim_timer = 0;
 
-        Debug.Log("Scripter Start Call");
+        ////Debug.Log("Scripter Start Call");
 
         string temp;
         Encryption_Config ec = Resources.Load<Encryption_Config>("Prefab/Encryption");
+        int count = 0;
         while (sr.Peek() != -1)
         {
             temp = ec.DecryptionSystem(sr.ReadLine(),false);
+            count++;
             Scription test = JsonUtility.FromJson<Scription>(temp);
             switch (test.type)
             {
@@ -297,7 +299,7 @@ public class Light_Novel_Scripter : MonoBehaviour
                     }
                     check += log_text;
                     log_text = "";
-                    Debug.Log(check);
+                    ////Debug.Log(check);
                     string[] temp = check.Split('\\');
                     check = temp[0];
                     for (int i = 1; i < temp.Length; i++)
@@ -315,7 +317,7 @@ public class Light_Novel_Scripter : MonoBehaviour
                         }
                     }
 
-                    Debug.Log(check);
+                    //Debug.Log(check);
                     back_log.text += check;
                     back_log.text += "\n\n";
                 }
@@ -625,14 +627,14 @@ public class Light_Novel_Scripter : MonoBehaviour
                     return NOVEL_STATUS.FINISH;
             }
         }
-        Debug.Log(now.text);
+        //Debug.Log(now.text);
         return NOVEL_STATUS.WRITING;
     }
     string save_data = "";
     //クリック・スペースキーが押され、次のシーンに続くときの処理
     bool Operation_next()
     {
-        if (Input.GetKeyDown(KeyCode.Space) || (Input.GetMouseButtonDown(0) && !Scripter_ClickChecker.button_over))
+        if ((Input.GetButtonDown("Submit")&& !Scripter_ClickChecker.button_over))
         {
             if (state == NOVEL_STATUS.ANIMATION || state == NOVEL_STATUS.DELAY) return true;
             state = NOVEL_STATUS.NEXT;
@@ -707,7 +709,7 @@ public class Light_Novel_Scripter : MonoBehaviour
                     {
                         character_voice.Stop();
                     }
-                    Debug.Log("Scripter Update Call");
+                    ////Debug.Log("Scripter Update Call");
 
                     state = Next_Command();
                     if (state == NOVEL_STATUS.FINISH)
@@ -830,7 +832,7 @@ public class Light_Novel_Scripter : MonoBehaviour
                             case ANIMATION_TYPE.ANIMATION_NO_TIME:
                                 break;
                             case ANIMATION_TYPE.ANIMATION_SYNCHRO:
-                                Debug.Log("Error;");
+                                ////Debug.Log("Error;");
                                 break;
                             case ANIMATION_TYPE.FADE_IN:
                                 check = true;
@@ -897,7 +899,7 @@ public class Light_Novel_Scripter : MonoBehaviour
                 }
                 break;
             case SCREEN_STATUS.FADE_OUT:
-                Debug.Log("Error");
+                ////Debug.Log("Error");
                 break;
         }
         return true;

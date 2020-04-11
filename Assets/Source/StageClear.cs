@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
+using UnityEngine.EventSystems;
 /**************************************/
 /*GameClear gameclear ゲームクリア    */
 /*ゲームクリア時の処理を行うクラス    */
@@ -18,7 +19,10 @@ public class StageClear: MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        
+        BattleVal.status = STATUS.DRAW_STAGE;
+        GameObject child = this.transform.GetChild(1).gameObject;
+        child = child.transform.GetChild(0).gameObject;
+        EventSystem.current.SetSelectedGameObject(child);
     }
 
     // Update is called once per frame

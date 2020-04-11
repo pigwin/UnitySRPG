@@ -205,6 +205,12 @@ public class IFCommand : MonoBehaviour
                     {
                         a_list.Add(enemy_data_value[i].hp);
                     }
+                }else if (check_value_contents[1].Equals("skills"))
+                {
+                    for(int i = 0; i < enemy_data_value.Count; i++)
+                    {
+                        a_list.Add(enemy_data_value[i].skills.Count);
+                    }
                 }
                 ret += 1;
                 if (value_name.Split(':')[0].Equals("ANY"))
@@ -243,6 +249,12 @@ public class IFCommand : MonoBehaviour
                     {
                         a_list.Add(player_data_value[i].status.level);
                     }
+                }else if (check_value_contents[1].Equals("skills"))
+                {
+                    for(int i = 0; i < player_data_value.Count; i++)
+                    {
+                        a_list.Add(player_data_value[i].skills.Count);
+                    }
                 }
                 ret += 1;
                 if (value_name.Split(':')[1].Equals("ANY"))
@@ -269,6 +281,9 @@ public class IFCommand : MonoBehaviour
             {
                 a = value_dictionary[value_name].status.level;
 
+            }else if (check_value_contents[1].Equals("skills"))
+            {
+                a = value_dictionary[value_name].skills.Count;
             }
         }
         else
@@ -310,6 +325,12 @@ public class IFCommand : MonoBehaviour
                     {
                         b_list.Add(enemy_data_value[i].hp);
                     }
+                }else if (check_value_contents[1].Equals("skills"))
+                {
+                    for(int i = 0; i < enemy_data_value.Count; i++)
+                    {
+                        b_list.Add(enemy_data_value[i].skills.Count);
+                    }
                 }
                 ret += 2;
                 if (value_name.Split(':')[0].Equals("ANY"))
@@ -342,6 +363,12 @@ public class IFCommand : MonoBehaviour
                     {
                         a_list.Add(player_data_value[i].hp);
                     }
+                }else if (check_value_contents[1].Equals("skills"))
+                {
+                    for(int i = 0; i < player_data_value.Count; i++)
+                    {
+                        a_list.Add(player_data_value[i].skills.Count);
+                    }
                 }
                 ret += 2;
                 if (value_name.Split(':')[1].Equals("ANY"))
@@ -363,6 +390,9 @@ public class IFCommand : MonoBehaviour
             else if (check_value_contents[1].Equals("hp"))
             {
                 a = value_dictionary[value_name].hp;
+            }else if (check_value_contents[1].Equals("skills"))
+            {
+                a = value_dictionary[value_name].skills.Count;
             }
             else if (check_value_contents[1].Equals("position"))
             {

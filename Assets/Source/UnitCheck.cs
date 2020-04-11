@@ -1,7 +1,9 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 
 public class UnitCheck : MonoBehaviour
 {
@@ -37,6 +39,10 @@ public class UnitCheck : MonoBehaviour
     public Text textNoSkill;
     private List<GameObject> skillPanelList = new List<GameObject>();
 
+    private List<GameObject> unitpanellist = new List<GameObject>();
+
+    public Scrollbar scrollSkillList;
+
     [SerializeField] AudioSource seAudioSource;
     [SerializeField] AudioClip seOk;
 
@@ -61,24 +67,152 @@ public class UnitCheck : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        //ユニットが選ばれたら更新
-        if(_is_unitchange)
+        try
         {
-            seAudioSource.clip = seOk;
-            seAudioSource.Play();
-            Setup_Detail(unitNowSelected);
-            _is_unitchange = false;
+            if (!BattleVal.is_mouseinput)
+                GetKeypadInput_SortieWindow();
+
+            //ユニットが選ばれたら更新
+            if (_is_unitchange)
+            {
+                seAudioSource.clip = seOk;
+                seAudioSource.Play();
+                Setup_Detail(unitNowSelected);
+                _is_unitchange = false;
+            }
         }
+        catch(ArgumentOutOfRangeException)
+        {
+
+        }
+        
+
     }
 
     //ユニットリストの描画
     public void DrawUnitList()
     {
+        foreach (GameObject temp_unit in unitpanellist)
+        {
+            Destroy(temp_unit);
+        }
+        unitpanellist.Clear();
         //加入しているパーティメンバーのパネルを作成する。
         foreach (UnitSaveData unitsave in GameVal.masterSave.playerUnitList)
         {
             GameObject tempunitpanel = Instantiate(prefabUnitPanel, gobjUnitPanelParent.transform);
             tempunitpanel.GetComponent<UnitPanel>().SetUnit(unitsave, false, false, true); //ユニット確認用フラグを立てる
+            unitpanellist.Add(tempunitpanel);
+        }
+
+    }
+
+    //キー入力待ち時間
+    [SerializeField] const float interval_keypad_time = 0.15f;
+    float delta_keypad_time = interval_keypad_time;
+    public ScrollRect scrollviewUnitSetup;
+
+    //キーパッドモード時の出撃メニュー操作
+    public void GetKeypadInput_SortieWindow()
+    {
+        //選ばれてないとき
+        try
+        {
+            GameObject obj = EventSystem.current.currentSelectedGameObject;
+            if (obj == null)
+            {
+                if (unitpanellist.Count > 0)
+                {
+                    EventSystem.current.SetSelectedGameObject(unitpanellist[0]);
+                    scrollviewUnitSetup.verticalNormalizedPosition = 1.0f;
+                }
+            }
+        }
+        catch (NullReferenceException ex)
+        {
+            if (unitpanellist.Count > 0)
+            {
+                EventSystem.current.SetSelectedGameObject(unitpanellist[0]);
+                scrollviewUnitSetup.verticalNormalizedPosition = 1.0f;
+            }
+        }
+
+        //一定時間待つ
+        if (delta_keypad_time < interval_keypad_time)
+        {
+            delta_keypad_time += Time.deltaTime;
+            return;
+        }
+
+        delta_keypad_time = 0;
+
+        //左入力（スキル選択判定）
+        if (Input.GetAxisRaw("Horizontal") < 0 && !CharaStatusPrinter.is_selectSkillList)
+        {
+            CharaStatusPrinter.is_selectSkillList = true;
+        }
+        if (Input.GetAxisRaw("Horizontal") > 0 && CharaStatusPrinter.is_selectSkillList)
+        {
+            CharaStatusPrinter.is_selectSkillList = false;
+            int nowselect = (int)((1 - scrollviewUnitSetup.verticalNormalizedPosition) * (unitpanellist.Count - 1));
+            EventSystem.current.SetSelectedGameObject(unitpanellist[nowselect]);
+        }
+        if (CharaStatusPrinter.is_selectSkillList)
+        {
+            if (scrollSkillList.gameObject.activeSelf)
+            {
+                try
+                {
+                    if(EventSystem.current.currentSelectedGameObject != scrollSkillList)
+                    {
+                        scrollSkillList.Select();
+                    }
+                }
+                catch (NullReferenceException)
+                {
+                    scrollSkillList.Select();
+                }
+            }
+            return;
+        }
+        //以下スキルリストがセレクトされてない場合
+
+        //上入力
+        if (Input.GetAxisRaw("Vertical") > 0)
+        {
+            int nowselect = unitpanellist.IndexOf(EventSystem.current.currentSelectedGameObject);
+            if (nowselect > 0)
+            {
+                //表示領域調整
+                try
+                {
+                    scrollviewUnitSetup.verticalNormalizedPosition = Mathf.Clamp(1.0f - (float)(nowselect - 1) / (unitpanellist.Count - 1), 0, 1);
+                }
+                catch (ArithmeticException ex)
+                {
+                    scrollviewUnitSetup.verticalNormalizedPosition = 1.0f;
+                }
+                EventSystem.current.SetSelectedGameObject(unitpanellist[nowselect - 1]);
+            }
+        }
+        //下入力
+        if (Input.GetAxisRaw("Vertical") < 0)
+        {
+            int nowselect = unitpanellist.IndexOf(EventSystem.current.currentSelectedGameObject);
+            if (nowselect < unitpanellist.Count - 1)
+            {
+                //表示領域調整
+                try
+                {
+                    scrollviewUnitSetup.verticalNormalizedPosition = Mathf.Clamp(1.0f - (float)(nowselect + 1) / (unitpanellist.Count - 1), 0, 1);
+                }
+                catch (ArithmeticException ex)
+                {
+                    scrollviewUnitSetup.verticalNormalizedPosition = 1.0f;
+                }
+
+                EventSystem.current.SetSelectedGameObject(unitpanellist[nowselect + 1]);
+            }
         }
 
     }

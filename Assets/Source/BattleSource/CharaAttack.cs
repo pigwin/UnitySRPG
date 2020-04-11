@@ -311,12 +311,15 @@ public class CharaAttack : MonoBehaviour {
     public static float Calc_Dexterity(Unitdata Attack, Unitdata Defence)
     {
         float dex = 1.0f; //基本値
-
+        foreach(Condition cond in Defence.status.conditions)
+        {
+            if (cond.forbiddenMove) return dex;  //移動不可系の状態異常罹患時は必中
+        }
         //TEC由来
         dex += (float)(Attack.status.tec - Defence.status.tec) / 100.0f * 0.50f;
         //LUC由来
         dex += (float)(Attack.status.luc - Defence.status.luc) / 100.0f * 0.50f;
-        Debug.Log(dex);
+        //Debug.Log(dex);
 
         if (dex > 1) dex = 1.0f;
         if (dex < 0) dex = 0.0f;
@@ -332,7 +335,7 @@ public class CharaAttack : MonoBehaviour {
         rate += (float)(Attack.status.tec - Defence.status.tec) / 100.0f;
         //LUC由来
         rate += (float)(Attack.status.luc - Defence.status.luc) / 100.0f * 0.50f;
-        Debug.Log(rate);
+        //Debug.Log(rate);
 
         if (rate > 1) rate = 1.0f;
         if (rate < 0) rate = 0.0f;
@@ -363,6 +366,7 @@ public class CharaAttack : MonoBehaviour {
     public Text damagetextprefab;
     //バトル演出時間
     private float battle_time = 1.0f;
+    private float damage_popy = 50f;
     private static float nowtime;
     public Canvas canvas;
     //通常ヒット音
@@ -413,7 +417,6 @@ public class CharaAttack : MonoBehaviour {
                         }
 
                         temp.hp -= damage; //ダメージ処理
-                        
 
                         string damagetext = string.Format("{0}", damage);
                         int count = 1;
@@ -573,20 +576,25 @@ public class CharaAttack : MonoBehaviour {
                             }
 
                             damagenum.Clear();
-
+                            //戦闘用のダメージ表示などの判定が終了した後に、カメラの位置の移動
+                            CameraAngle.CameraPoint(BattleVal.selectedUnit.gobj.transform.position);
                             //攻撃可能フラグをオフに
                             BattleVal.selectedUnit.atackable = false;
                         }
                         else
                         {
+                            float accelfact = 1.0f;
+                            //加速処理
+                            if (Input.GetButton("Submit")) accelfact = 2.0f;
+                            if (Input.GetButton("Cancel")) nowtime = battle_time;
                             //ダメージ数値のテキストを消す処理
                             //damagetext.color -= new Color(0,0,0,Time.deltaTime);
                             foreach (Text a in damagenum)
                             {
-                                a.color -= new Color(0, 0, 0, Time.deltaTime);
-                                a.transform.position += new Vector3(0, 1, 0); 
+                                a.color -= new Color(0, 0, 0, Time.deltaTime*accelfact);
+                                a.transform.position += new Vector3(0, damage_popy*Time.deltaTime*accelfact, 0); 
                             }
-                            nowtime += Time.deltaTime;
+                            nowtime += Time.deltaTime*accelfact;
 
                         }
                     }
@@ -596,7 +604,23 @@ public class CharaAttack : MonoBehaviour {
                 case BATTLE_STATUS.AFTERBATTLE:
                     //ヒットエフェクトの消去
                     Destroy(hitEffect);
-                    //獲得経験値
+
+                    string deffence_key = string.Format("{0},{1}", attackedpos[0], attackedpos[1]);
+                    //物理攻撃で解除される状態異常の判定
+                    if (!dodgeflag)
+                    {
+                        for(int j=BattleVal.id2index[deffence_key].status.conditions.Count - 1; j >= 0; j--)
+                        {
+                            if(BattleVal.id2index[deffence_key].status.conditions[j].is_curebyattack)
+                            {
+                                Destroy(BattleVal.id2index[deffence_key].status.conditions[j].gobjEffect);
+
+                                BattleVal.id2index[deffence_key].status.conditions.RemoveAt(j);
+                            }
+                        }
+                    }
+
+                     //獲得経験値
                     int getexp = 10; //基本値
 
                     //撃墜処理

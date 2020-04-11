@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using System;
 
 //ステータス管理用のキャラデータ
 public class CharaData : ScriptableObject
@@ -35,8 +36,12 @@ public class CharaData : ScriptableObject
     [Header("保有スキル")] //Skill.cs参照
     public List<SkillTree> skillTrees;
 
+    [Header("戦闘開始時に罹患している状態異常")]
+    public List<Condition> alreadyconditions;
+
     [Header("エネミーの思考設定")]
     public EnemyRoutin routin; //EnemyAI.cs参照
+
 }
 
 //戦闘に関わるステータス
@@ -48,10 +53,70 @@ public class Status
     public int level;
     [System.NonSerialized]
     public int exp;
+    [System.NonSerialized]
+    public List<Condition> conditions; //状態異常
+
     [Tooltip("歩数")]
-    public int step=1;
+    [UnityEngine.Serialization.FormerlySerializedAs("step")]
+    [SerializeField]
+    private int _step=1;
     [Tooltip("跳躍")]
-    public int jump=1;
+    [UnityEngine.Serialization.FormerlySerializedAs("jump")]
+    [SerializeField]
+    private int _jump=1;
+
+    [Header("状態異常耐性")]
+    public List<string> list_resistconditions;
+
+    public int step
+    {
+        get
+        {
+            int ans = _step;
+            try
+            {
+                foreach (Condition condition in conditions)
+                {
+                    ans += condition.stepsup;
+                }
+            }
+            catch (NullReferenceException ex)
+            {
+
+            }
+
+            return ans;
+        }
+    }
+    public int step_default
+    {
+        get { return _step; }
+    }
+
+    public int jump
+    {
+        get
+        {
+            int ans = _jump;
+            try
+            {
+                foreach (Condition condition in conditions)
+                {
+                    ans += condition.jumpsup;
+                }
+            }
+            catch (NullReferenceException ex)
+            {
+
+            }
+
+            return ans;
+        }
+    }
+    public int jump_default
+    {
+        get { return _jump; }
+    }
 
     //成長曲線
     [Header("最大ＨＰ")]
@@ -73,13 +138,150 @@ public class Status
     [Header("必要経験値／撃破時取得経験値")]
     public Growcurve needexpcurve;
 
-    public int maxhp { get { return maxhpcurve.value(level); } }
-    public int atk { get { return atkcurve.value(level); } }
-    public int def { get { return defcurve.value(level); } }
-    public int mat { get { return matcurve.value(level); } }
-    public int mdf { get { return mdfcurve.value(level); } }
-    public int tec { get { return teccurve.value(level); } }
-    public int luc { get { return luccurve.value(level); } }
+    public int maxhp
+    {
+        get
+        {
+            float ans = maxhpcurve.value(level);
+            try
+            {
+                foreach (Condition condition in conditions)
+                {
+                    ans *= condition.maxhpsup;
+                }
+            }
+            catch(NullReferenceException ex)
+            {
+
+            }
+            
+            if (ans > 999) ans = 999;
+            return (int)ans;
+        }
+    }
+    public int atk
+    {
+        get
+        {
+            float ans = atkcurve.value(level);
+            try
+            {
+                foreach (Condition condition in conditions)
+                {
+                    ans *= condition.atksup;
+                }
+            }
+            catch (NullReferenceException ex)
+            {
+
+            }
+            
+            if (ans > 999) ans = 999;
+            return (int)ans;
+        }
+    }
+    public int def
+    {
+        get
+        {
+            float ans = defcurve.value(level);
+            try
+            {
+                foreach (Condition condition in conditions)
+                {
+                    ans *= condition.defsup;
+                }
+            }
+            catch (NullReferenceException ex)
+            {
+
+            }
+            
+            if (ans > 999) ans = 999;
+            return (int)ans;
+        }
+    }
+    public int mat
+    {
+        get
+        {
+            float ans = matcurve.value(level);
+            try
+            {
+                foreach (Condition condition in conditions)
+                {
+                    ans *= condition.matsup;
+                }
+            }
+            catch (NullReferenceException ex)
+            {
+
+            }
+            
+            if (ans > 999) ans = 999;
+            return (int)ans;
+        }
+    }
+    public int mdf
+    {
+        get
+        {
+            float ans = mdfcurve.value(level);
+            try
+            {
+                foreach (Condition condition in conditions)
+                {
+                    ans *= condition.mdfsup;
+                }
+            }
+            catch (NullReferenceException ex)
+            {
+
+            }
+            if (ans > 999) ans = 999;
+            return (int)ans;
+        }
+    }
+    public int tec
+    {
+        get
+        {
+            float ans = teccurve.value(level);
+            try
+            {
+                foreach (Condition condition in conditions)
+                {
+                    ans *= condition.tecsup;
+                }
+            }
+            catch (NullReferenceException ex)
+            {
+
+            }
+            if (ans > 999) ans = 999;
+            return (int)ans;
+        }
+    }
+    public int luc
+    {
+        get
+        {
+            float ans = luccurve.value(level);
+            try
+            {
+                foreach (Condition condition in conditions)
+                {
+                    ans *= condition.lucsup;
+                }
+            }
+            catch (NullReferenceException ex)
+            {
+
+            }
+            if (ans > 999) ans = 999;
+            return (int)ans;
+        }
+    }
     public int needexp { get { return needexpcurve.value(level); } }
 }
 
@@ -134,10 +336,45 @@ public class Unitdata
 
     //ゲーム中変わるもの
     public int x, y; //マップ内座標
-    public int hp;
+    private int _hp;
+    public int hp
+    {
+        set { _hp = value; }
+        get
+        {
+            if (_hp <= status.maxhp) return _hp;
+            //最大HPを超えるHPを持っている場合
+            _hp = status.maxhp;
+            return _hp;
+        }
+    }
     //public int exp; //経験値
-    public bool movable; //行動可能か（ターンチェンジ時にtrueに、移動するとfalseに）
+    private bool _movable;
+    //行動可能か（ターンチェンジ時にtrueに、移動するとfalseに）
+    public bool movable
+    {
+        set { _movable = value; }
+        get
+        {
+            if (status.step == 0) return false;
+            else return _movable;
+        }
+    }
     public bool atackable; //攻撃可能か
+
+    //魔法の使用可否
+    public bool magicable
+    {
+        get
+        {
+            foreach(Condition condition in status.conditions)
+            {
+                if (condition.forbiddenMagic)
+                    return false;
+            }
+            return true;
+        }
+    }
 
     //セーブ用
     public string savescobj;
@@ -190,9 +427,20 @@ public class Unitdata
             if (loaddata.init_status.level >= skilltree.getlevel)
                 skills.Add(ScriptableObject.Instantiate<Skill>(skilltree.skill));
         }
-        //skills = loaddata.skills;
+        
         foreach (Skill skill in skills)
             skill.use = skill.maxuse;
+
+        status.conditions = new List<Condition>();
+        foreach(Condition condition in loaddata.alreadyconditions)
+        {
+            Condition cond = ScriptableObject.Instantiate<Condition>(Resources.Load(
+                string.Format("Condition/{0}", condition.filename)
+                ) as Condition);
+            cond.SetCondition(this, false);
+            status.conditions.Add(cond);
+        }
+
         routin = loaddata.routin;
         savescobj = scobj;
         this.partyid = partyid;
@@ -284,6 +532,16 @@ public class Unitdata
         atackable = save.atackable;
 
         partyid = save.partyid;
+        status.conditions = new List<Condition>();
+        foreach (ConditionSaveData conditionSave in save.conditionsSave)
+        {
+            Condition cond = ScriptableObject.Instantiate<Condition>(Resources.Load(
+                string.Format("Condition/{0}", conditionSave.scobj)
+                ) as Condition);
+            cond.SetCondition(this, instantiateflag);
+            cond.nowstate = conditionSave;
+            status.conditions.Add(cond);
+        }
     }
 
 }
@@ -302,6 +560,7 @@ public class UnitSaveData
     public bool movable;
     public bool atackable;
     public int partyid;
+    public List<ConditionSaveData> conditionsSave;
 
     //セーブデータ抽出
     public UnitSaveData(Unitdata unit)
@@ -326,7 +585,12 @@ public class UnitSaveData
             }
         }
         partyid = unit.partyid;
-        
+
+        conditionsSave = new List<ConditionSaveData>();
+        foreach(Condition cond in unit.status.conditions)
+        {
+            conditionsSave.Add(cond.nowstate);
+        }
     }
 
     //CharaData(scobj) から CharaSaveDataの作成
@@ -352,7 +616,10 @@ public class UnitSaveData
                 skillname.Add(skilltree.skill.skillname);
             }
         }
-        this.partyid = partyid; 
+        this.partyid = partyid;
+
+        conditionsSave = new List<ConditionSaveData>();
+        
     }
 
 }

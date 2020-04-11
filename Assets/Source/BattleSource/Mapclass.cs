@@ -112,7 +112,10 @@ public class Mapclass : MonoBehaviour
         if(BattleVal.status == STATUS.DRAW_STAGE_FROM_LOADDATA)
         {
             //セーブデータの呼び出し
-            FileStream fs = new FileStream(Application.streamingAssetsPath + Operation.loadtemp, FileMode.Open, FileAccess.Read);
+            //Windows
+            //FileStream fs = new FileStream(Application.streamingAssetsPath + Operation.loadtemp, FileMode.Open, FileAccess.Read);
+            //Mac
+            FileStream fs = new FileStream(Application.persistentDataPath + Operation.loadtemp, FileMode.Open, FileAccess.Read);
             StreamReader sr = new StreamReader(fs);
             BattleSave sd = JsonUtility.FromJson<BattleSave>(sr.ReadLine());
             
@@ -169,13 +172,21 @@ public class Mapclass : MonoBehaviour
                     DrawCharacter(unittile, unit.x, unit.y);
                 }
 
+                foreach(Condition condition in unit.status.conditions)
+                {
+                    condition.InstantiateEffect(unit);
+                }
+
                 unit.gobj.layer = 8;
             }
 
             //tmpファイルの削除
             sr.Close();
             fs.Close();
-            System.IO.File.Delete(Application.streamingAssetsPath + Operation.loadtemp);
+            //Windows
+            //System.IO.File.Delete(Application.streamingAssetsPath + Operation.loadtemp);
+            //Mac
+            System.IO.File.Delete(Application.persistentDataPath + Operation.loadtemp);
             //セーブデータからの再描画終了
             BattleVal.status = STATUS.TAKE_SCREENSHOT_FROM_LOADDATA;
 
@@ -265,6 +276,7 @@ public class Mapclass : MonoBehaviour
         //float posy = ((float)BattleVal.mapdata[(int)MapdataList.MAPHEIGHT][mapy][mapx] * MapBoxHeight + (float)Character.transform.localScale.y) / 2.0f;
         float posy = ((float)BattleVal.mapdata[(int)MapdataList.MAPHEIGHT][mapy][mapx] * MapBoxHeight) / 2.0f;
         posy += ((float)BattleVal.mapdata[(int)MapdataList.MAPHEIGHT][mapy][mapx] - 1.0f) * MapBoxHeight / 2.0f;
+        if((float)BattleVal.mapdata[(int)MapdataList.MAPHEIGHT][mapy][mapx] == 0) posy = MapBoxHeight / 2.0f;
         float posz = maporiginy - (float)mapy;
         //描画
         Character.transform.position = new Vector3(posx, posy, posz);
@@ -334,6 +346,10 @@ public class Mapclass : MonoBehaviour
                     BattleVal.unitlist.Add(tmpchara);
                     BattleVal.id2index.Add(string.Format("{0},{1}", j, i), tmpchara);
                     DrawCharacter(BattleVal.unitlist[tmpcharalabel].gobj, j, i);
+                    foreach(Condition cond in tmpchara.status.conditions)
+                    {
+                        cond.InstantiateEffect(tmpchara);
+                    }
                     //足元にチーム識別タイルを
                     GameObject unittile;
                     if (tmpchara.team == 0)
@@ -380,6 +396,12 @@ public class Mapclass : MonoBehaviour
         }
     }
 
+    //マップ範囲内かを判定する
+    public static bool is_Inmap(int x, int y)
+    {
+        return (x < mapxnum && x >= 0 && y < mapynum && y >= 0);
+    }
+
     //移動可能範囲を探索する関数
     public static List<int[]> Dfs(List<List<List<int>>> maps, int startx, int starty, int steps, int jump)
     {
@@ -412,7 +434,8 @@ public class Mapclass : MonoBehaviour
                     }
                 }
                 if (!check) continue;
-                if (x < mapxnum && x >= 0 && y < mapynum && y >= 0)
+                //if (x < mapxnum && x >= 0 && y < mapynum && y >= 0)
+                if (is_Inmap(x,y))
                 {
                     //空欄マスでなく、ジャンプ範囲内
                     if (maps[(int)MapdataList.MAPTEXTURE][y][x] != 0

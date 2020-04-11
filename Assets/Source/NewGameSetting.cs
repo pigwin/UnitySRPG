@@ -15,6 +15,9 @@ public class NewGameSetting : MonoBehaviour
         GameVal.masterSave.partySettings = initPartySettings;
         GameVal.masterSave.playerUnitList = new List<UnitSaveData>();
         GameVal.masterSave.id2unitdata = new Dictionary<int, UnitSaveData>();
+        GameVal.masterSave.is_story_clear = false;
+        GameVal.masterSave.is_clear_mugen = false;
+
         initPartySettings.string2Dictionary();
         //パーティメンバーの設定を行う
         foreach(KeyValuePair<int,string> kvp in initPartySettings.party_charalist)
@@ -27,7 +30,7 @@ public class NewGameSetting : MonoBehaviour
             }
         }
 
-        Debug.Log(GameVal.masterSave.id2unitdata[1].scobj);
+        //Debug.Log(GameVal.masterSave.id2unitdata[1].scobj);
     }
 
 }

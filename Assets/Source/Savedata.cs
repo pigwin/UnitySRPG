@@ -32,6 +32,9 @@ public class Savedata : ISerializationCallbackReceiver
     public PartySettings partySettings;
     public List<string> partysetting_string_serialize = new List<string>(); //セーブ用
 
+    public bool is_clear_mugen = false; //2022用内部データ
+    public bool is_story_clear = false; //ゲームオーバー時のステージセレクトへのバック用
+
     //キャラクタ加入
     public void UnitAdd(UnitSaveData unit, int initlevel = 0)
     {
@@ -54,6 +57,14 @@ public class Savedata : ISerializationCallbackReceiver
                 if (kvp.Value == unit.scobj) key = kvp.Key;
             }
             if (key != -1) JointId2Unit(key, unit);
+        }
+        else
+        {
+            //サモン・ミリタリー2020/3月用
+            //パーティメンバーをIDと紐づける。
+            int key = partySettings.party_charalist.Count + 1;
+            partySettings.party_charalist.Add(key, unit.scobj);
+            JointId2Unit(key, unit);
         }
     }
 
@@ -105,6 +116,9 @@ public class Savedata : ISerializationCallbackReceiver
         playerUnitList = GameVal.masterSave.playerUnitList;
         id2unitdata = GameVal.masterSave.id2unitdata;
         partySettings = GameVal.masterSave.partySettings;
+
+        is_clear_mugen = GameVal.masterSave.is_clear_mugen;
+        is_story_clear = GameVal.masterSave.is_story_clear;
     }
 
     //Load
@@ -128,6 +142,9 @@ public class Savedata : ISerializationCallbackReceiver
         }
         GameVal.masterSave.id2unitdata = id2unitdata;
         GameVal.masterSave.partySettings = partySettings;
+
+        GameVal.masterSave.is_clear_mugen = is_clear_mugen;
+        GameVal.masterSave.is_story_clear = is_story_clear;
     }
 
     //シリアライズ

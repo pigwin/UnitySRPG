@@ -45,11 +45,13 @@ public class ScriptReader{
         BattleVal.mapdata.Add(new List<List<int>>());
         //読み込みループ
         Encryption_Config ec = Resources.Load<Encryption_Config>("Prefab/Encryption");
+        int count = 0;
         while (sr.Peek() != -1)
         {
             loading = sr.ReadLine();
             //**注意**---------------------------------------------------------------------
             loading = ec.DecryptionSystem(loading,false);
+            count++;
             //**---------------------------------------------------------------------------
             //1行読み込み分のテンポラリ
             List<int> tmpfield = new List<int>();

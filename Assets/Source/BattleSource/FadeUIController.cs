@@ -21,11 +21,11 @@ public class FadeUIController : MonoBehaviour
             fade = gobjFadeUI.GetComponent<FadeUI>();
             fade.Range = 1;
             initflag = false;
-            Debug.Log(fade.Range);
+            //Debug.Log(fade.Range);
             return false;
         }
-        Debug.Log(timer);
-        Debug.Log(fade.Range);
+        //Debug.Log(timer);
+        //Debug.Log(fade.Range);
         fade.Range -= Time.deltaTime / timer;
 
         if(fade.Range <= 0)

@@ -1,6 +1,7 @@
 ﻿using UnityEngine;
 using UnityEngine.UI;
 using System.Collections;
+using UnityEngine.EventSystems;
 
 public class MessageBoxHundler : MonoBehaviour
 {
@@ -8,6 +9,7 @@ public class MessageBoxHundler : MonoBehaviour
     public Text textMessage;
     public float fadeouttime = 0.2f;
     public CanvasGroup canvas;
+    public Button button;
 
     [System.NonSerialized]public bool destroyflag = false;
     enum STATUS
@@ -44,6 +46,7 @@ public class MessageBoxHundler : MonoBehaviour
                 if(canvas.alpha >= 1)
                 {
                     state = STATUS.SHOW;
+                    button.Select();
                 }
                 else
                 {
@@ -58,6 +61,7 @@ public class MessageBoxHundler : MonoBehaviour
                 {
                     destroyflag = true;
                     Destroy(this.gameObject);
+                    EventSystem.current.SetSelectedGameObject(null);
                 }
                 else
                 {

@@ -6,7 +6,8 @@ using UnityEngine.UI;
 enum MOVING_STATUS
 {
     SETVECT,
-    MOVING
+    MOVING,
+    MOVEEND
 }
 /*******************************************************************/
 /*キャラクターの移動に関すること全般を処理するクラス               */
@@ -196,6 +197,9 @@ public class CharaMove : MonoBehaviour {
         //移動中の場合
         if (BattleVal.status == STATUS.MOVING)
         {
+            //スキップ
+            if (Input.GetButton("Cancel")) mstate = MOVING_STATUS.MOVEEND;
+
             switch (mstate)
             {
                 case MOVING_STATUS.SETVECT:
@@ -203,48 +207,8 @@ public class CharaMove : MonoBehaviour {
                     //移動終了の判定
                     if (nowstep == movepath.Count - 1)
                     {
-                        //行動スタックを積む（1手戻し用）
-                        if (BattleVal.status == STATUS.MOVING)
-                        {
-                            Action thisact = new Action(BattleVal.selectedUnit,
-                                BattleVal.selectedUnit.x, BattleVal.selectedUnit.y, movepath[nowstep][0], movepath[nowstep][1]);
-                            BattleVal.actions.Push(thisact);
-                        }
 
-                        //map上のキャラクターIDの更新
-                        //座標情報のアップデート
-                        BattleVal.mapdata[(int)MapdataList.MAPUNIT][movepath[nowstep][1]][movepath[nowstep][0]]
-                            = BattleVal.mapdata[(int)MapdataList.MAPUNIT][movepath[0][1]][movepath[0][0]];
-                        //移動した場合
-                        if (nowstep != 0)
-                            BattleVal.mapdata[(int)MapdataList.MAPUNIT][movepath[0][1]][movepath[0][0]] = 0;
-                        //BattleVal.selectedUnit.gobj.GetComponent<QuerySDMecanimController>().ChangeAnimation(QuerySDMecanimController.QueryChanSDAnimationType.NORMAL_STAND);
-                        BattleVal.selectedUnit.gobj.GetComponent<Animator>().SetBool("Walk", false);
-                        BattleVal.selectedUnit.gobj.GetComponent<Animator>().SetBool("Jump", false);
-                        BattleVal.selectedUnit.gobj.GetComponent<Animator>().Play("Idle");
-                        BattleVal.selectedUnit.gobj.GetComponent<Animator>().Update(0);
-
-                        BattleVal.selectedUnit.x = movepath[nowstep][0];
-                        BattleVal.selectedUnit.y = movepath[nowstep][1];
-                        //ディクショナリのアップデート
-                        BattleVal.id2index.Remove(string.Format("{0},{1}", BattleVal.selectX, BattleVal.selectY));
-                        BattleVal.id2index.Add(string.Format("{0},{1}", movepath[nowstep][0], movepath[nowstep][1]), BattleVal.selectedUnit);
-
-                        //Battleval.statusのアップデート
-                        Debug.Log(BattleVal.turnplayer);
-                        if (BattleVal.turnplayer == 0)
-                        {
-                            BattleVal.status = STATUS.PLAYER_UNIT_SELECT;
-                            BattleVal.selectX = -1;
-                            BattleVal.selectY = -1;
-                        }
-                        else
-                            BattleVal.status = STATUS.ENEMY_UNIT_SELECT;
-
-                        //移動可能フラグをオフに
-                        BattleVal.selectedUnit.movable = false;
-
-
+                        mstate = MOVING_STATUS.MOVEEND;
                         break;
                     }
                     //速度ベクトル(実空間)の計算
@@ -268,34 +232,7 @@ public class CharaMove : MonoBehaviour {
                     {
                         BattleVal.selectedUnit.gobj.GetComponent<Animator>().SetBool("Walk", true);
                     }
-                    /*
-                    //もしもジャンプする場合
-                    if (BattleVal.mapdata[(int)MapdataList.MAPHEIGHT][movepath[nowstep + 1][1]][movepath[nowstep + 1][0]] - BattleVal.mapdata[(int)MapdataList.MAPHEIGHT][movepath[nowstep][1]][movepath[nowstep][0]] > 0)
-                    {
-                        //ジャンプモーション
-                        BattleVal.selectedUnit.gobj.GetComponent<Animator>().SetBool("Walk", false);
-                        BattleVal.selectedUnit.gobj.GetComponent<Animator>().SetBool("Jump",true);
-                        //BattleVal.selectedUnit.gobj.GetComponent<QuerySDMecanimController>().ChangeAnimation(QuerySDMecanimController.QueryChanSDAnimationType.NORMAL_FLY_UP);
-                        stoptime = 0.3f;
-                    }
-                    else if (BattleVal.mapdata[(int)MapdataList.MAPHEIGHT][movepath[nowstep + 1][1]][movepath[nowstep + 1][0]] - BattleVal.mapdata[(int)MapdataList.MAPHEIGHT][movepath[nowstep][1]][movepath[nowstep][0]] < 0)
-                    {
-                        //ジャンプモーション
-                        BattleVal.selectedUnit.gobj.GetComponent<Animator>().SetBool("Walk", false);
-                        BattleVal.selectedUnit.gobj.GetComponent<Animator>().SetBool("Jump", true);
 
-                        //BattleVal.selectedUnit.gobj.GetComponent<QuerySDMecanimController>().ChangeAnimation(QuerySDMecanimController.QueryChanSDAnimationType.NORMAL_FLY_DOWN);
-                        stoptime = 0.3f;
-                    }
-                    else
-                    {
-                        //歩行モーション
-                        //BattleVal.selectedUnit.gobj.GetComponent<QuerySDMecanimController>().ChangeAnimation(QuerySDMecanimController.QueryChanSDAnimationType.NORMAL_WALK);
-                        BattleVal.selectedUnit.gobj.GetComponent<Animator>().SetBool("Jump", false);
-                        BattleVal.selectedUnit.gobj.GetComponent<Animator>().SetBool("Walk", true);
-
-                    }
-                    */
                     //キャラの向きの調整
                     Mapclass.TranslateMapCoordToPosition(ref r1, movepath[nowstep + 1][0], movepath[nowstep + 1][1]);
                     BattleVal.selectedUnit.gobj.transform.LookAt(r1);
@@ -328,29 +265,24 @@ public class CharaMove : MonoBehaviour {
                         }
                         now_stop_time += Time.deltaTime;
                         nowtime += Time.deltaTime;
-                        /*
-                        //終点に表示
 
-                        r1 = new Vector3();
-                        Mapclass.TranslateMapCoordToPosition(ref r1, movepath[nowstep + 1][0], movepath[nowstep + 1][1]);
-                        BattleVal.selectedUnit.gobj.transform.position = r1;
-                        BattleVal.selectedUnit.gobj.transform.LookAt(new Vector3(r1.x, BattleVal.selectedUnit.gobj.transform.position.y, r1.z));
-                        CameraAngle.CameraPoint(BattleVal.selectedUnit.gobj.transform.position);
-                        nowstep++;
-                        now_stop_time = 0;
-                        mstate = MOVING_STATUS.SETVECT;
-                        break;
-                        */
                     }
                     else
                     {
                         r1 = new Vector3();
                         Mapclass.TranslateMapCoordToPosition(ref r1, movepath[nowstep + 1][0], movepath[nowstep + 1][1]);
                         BattleVal.selectedUnit.gobj.transform.LookAt(new Vector3(r1.x, BattleVal.selectedUnit.gobj.transform.position.y, r1.z));
+
+                        float accelfact = 1.8f;
+                        //加速処理
+                        if (Input.GetButton("Submit")) accelfact = 3.6f;
+                        
                         //nowtime 加算処理
-                        nowtime += Time.deltaTime;
+                        nowtime += Time.deltaTime*accelfact;
                         //移動
-                        BattleVal.selectedUnit.gobj.transform.position += new Vector3(velocity.x, 0, velocity.z) * Time.deltaTime;
+                        BattleVal.selectedUnit.gobj.transform.position += new Vector3(velocity.x, 0, velocity.z) * Time.deltaTime * accelfact;
+
+                        
                         //カメラの移動
                         CameraAngle.CameraPoint(BattleVal.selectedUnit.gobj.transform.position);
 
@@ -361,30 +293,67 @@ public class CharaMove : MonoBehaviour {
                         else if (nowtime >= steptime / 2 && velocity.y > 0)
                         {
                             float tempvelocity = (r1.y - BattleVal.selectedUnit.gobj.transform.position.y)/(steptime - nowtime);
-                            BattleVal.selectedUnit.gobj.transform.position += new Vector3(0, tempvelocity ,0) * Time.deltaTime;
+                            BattleVal.selectedUnit.gobj.transform.position += new Vector3(0, tempvelocity ,0) * Time.deltaTime*accelfact;
                         }
                         else if (velocity.y < 0)
                         {
-                            BattleVal.selectedUnit.gobj.transform.position += new Vector3(0, velocity.y ,0) * Time.deltaTime;
+                            BattleVal.selectedUnit.gobj.transform.position += new Vector3(0, velocity.y ,0) * Time.deltaTime * accelfact;
                         }
 
-                        /*
-                        //モーションチェンジ
-
-                        if (nowtime < steptime / 2 && velocity.y > 0)
-                        {
-                            BattleVal.selectedUnit.gobj.transform.position += new Vector3(0, (float)velocity.y * steptime * 60 * nowtime, 0) * Time.deltaTime;
-                        }
-                        else if (nowtime >= steptime / 2 && velocity.y > 0)
-                        {
-                            BattleVal.selectedUnit.gobj.transform.position -= new Vector3(0, (float)(velocity.y * steptime * 16 + Physics.gravity.y) * (nowtime - steptime / 2)) * Time.deltaTime;
-                        }
-                        else if (velocity.y < 0)
-                        {
-                            BattleVal.selectedUnit.gobj.transform.position -= new Vector3(0, (float)(velocity.y * steptime * 8 - Physics.gravity.y) * nowtime - steptime) * Time.deltaTime;
-                        }
-                        */
                     }
+
+                    break;
+                case MOVING_STATUS.MOVEEND:
+                    nowstep = movepath.Count - 1;
+
+                    //行動スタックを積む（1手戻し用）
+                    if (BattleVal.status == STATUS.MOVING)
+                    {
+                        Action thisact = new Action(BattleVal.selectedUnit,
+                            BattleVal.selectedUnit.x, BattleVal.selectedUnit.y, movepath[nowstep][0], movepath[nowstep][1]);
+                        BattleVal.actions.Push(thisact);
+                    }
+
+                    //map上のキャラクターIDの更新
+                    //座標情報のアップデート
+                    BattleVal.mapdata[(int)MapdataList.MAPUNIT][movepath[nowstep][1]][movepath[nowstep][0]]
+                        = BattleVal.mapdata[(int)MapdataList.MAPUNIT][movepath[0][1]][movepath[0][0]];
+                    //移動した場合
+                    if (nowstep != 0)
+                        BattleVal.mapdata[(int)MapdataList.MAPUNIT][movepath[0][1]][movepath[0][0]] = 0;
+                    BattleVal.selectedUnit.gobj.GetComponent<Animator>().SetBool("Walk", false);
+                    BattleVal.selectedUnit.gobj.GetComponent<Animator>().SetBool("Jump", false);
+                    BattleVal.selectedUnit.gobj.GetComponent<Animator>().Play("Idle");
+                    BattleVal.selectedUnit.gobj.GetComponent<Animator>().Update(0);
+
+                    //終点に表示
+                    r1 = new Vector3();
+                    Mapclass.TranslateMapCoordToPosition(ref r1, movepath[nowstep][0], movepath[nowstep][1]);
+                    BattleVal.selectedUnit.gobj.transform.LookAt(new Vector3(r1.x, BattleVal.selectedUnit.gobj.transform.position.y, r1.z));
+                    BattleVal.selectedUnit.gobj.transform.position = r1;
+                    CameraAngle.CameraPoint(BattleVal.selectedUnit.gobj.transform.position);
+
+                    BattleVal.selectedUnit.x = movepath[nowstep][0];
+                    BattleVal.selectedUnit.y = movepath[nowstep][1];
+                    //ディクショナリのアップデート
+                    BattleVal.id2index.Remove(string.Format("{0},{1}", BattleVal.selectX, BattleVal.selectY));
+                    BattleVal.id2index.Add(string.Format("{0},{1}", movepath[nowstep][0], movepath[nowstep][1]), BattleVal.selectedUnit);
+
+                    //Battleval.statusのアップデート
+                    //Debug.Log(BattleVal.turnplayer);
+                    if (BattleVal.turnplayer == 0)
+                    {
+                        BattleVal.status = STATUS.PLAYER_UNIT_SELECT;
+                        BattleVal.selectX = -1;
+                        BattleVal.selectY = -1;
+                    }
+                    else
+                        BattleVal.status = STATUS.ENEMY_UNIT_SELECT;
+
+                    //移動可能フラグをオフに
+                    BattleVal.selectedUnit.movable = false;
+
+                    mstate = MOVING_STATUS.SETVECT;
 
                     break;
             }

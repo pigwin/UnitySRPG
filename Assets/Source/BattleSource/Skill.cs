@@ -18,6 +18,16 @@ public class Skill : ScriptableObject
     public AttackRange attackrange;
     [Header("効果範囲")]
     public AttackRange arearange;
+    [Header("付与される状態異常")]
+    public Condition condition;
+    [Header("弱体回復フラグ")]
+    public bool is_cureBadStatus;
+    [Header("強化解除フラグ")]
+    public bool is_disarm;
+    [Header("解除される特定の状態異常")]
+    public List<string> list_cureconditions;
+    [Header("移動後不可フラグ")]
+    public bool donot_moveafter;
     [Header("カットインフラグ")]
     public bool is_cutscene;
     [Header("カットインPrefab")]
@@ -36,6 +46,7 @@ public class Skill : ScriptableObject
     public Color skillColor;
     [Header("スキル説明文")]
     public string skilldetail;
+
 
     [System.NonSerialized]
     public int use;             //のこり使用回数保存用
